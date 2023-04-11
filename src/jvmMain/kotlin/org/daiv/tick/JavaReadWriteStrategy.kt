@@ -5,20 +5,35 @@ import org.daiv.time.isoTime
 import org.daiv.util.json.log
 import java.io.*
 import java.nio.ByteBuffer
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
+import javax.xml.crypto.Data
 
 class ByteBufferAdapter(val byteBuffer: ByteBuffer) : NativeDataGetter {
+    override val byte: Byte
+        get() = byteBuffer.get()
+    override val string:String
+        get() {
+            return String(byteBuffer.array().drop(byteBuffer.position()).toByteArray())
+        }
     override val long: Long
         get() = byteBuffer.long
     override val double: Double
         get() = byteBuffer.double
     override val int: Int
         get() = byteBuffer.int
+
+    override val position
+        get() = byteBuffer.position()
+
+    override val array
+        get() = byteBuffer.array()
 
     override fun put(src: ByteArray, offset: Int, length: Int) {
         byteBuffer.put(src, offset, length)
@@ -74,8 +89,17 @@ class NativeOutputStreamReceiver(val dataOutputStream: DataOutputStream) : Nativ
         dataOutputStream.writeDouble(d)
     }
 
+    override fun writeString(string: String) {
+        dataOutputStream.writeBytes(string)
+//        OutputStreamWriter(dataOutputStream, StandardCharsets.UTF_8).write(string)
+    }
+
     override fun writeInt(i: Int) {
         dataOutputStream.writeInt(i)
+    }
+
+    override fun writeByte(i: Int) {
+        dataOutputStream.writeByte(i)
     }
 
     override fun flush() {
@@ -98,6 +122,7 @@ class JavaInputStreams(file: FileRef) : ReadStream {
 
     val pr = DataInputStream(d)
     override fun read(byteArray: ByteArray): Int {
+
         return d.read(byteArray)
     }
 
@@ -116,7 +141,13 @@ class JavaListReadWriteStrategyFactory<T : Any>(val mapper: StreamMapper<T>) : L
     }
 }
 
-class JavaReadWriteStrategy<T : Any>(val file: FileRef, override val mapper: StreamMapper<T>) : LRWStrategy<T>,
+object JavaLRWSFactory : LRWStrategyFactory {
+    override fun <T> create(file: FileRef, mapper: StreamMapper<T>): LRWStrategy<T> {
+        return JavaReadWriteStrategy(file, mapper)
+    }
+}
+
+class JavaReadWriteStrategy<T>(val file: FileRef, override val mapper: StreamMapper<T>) : LRWStrategy<T>,
     FileNameable by file {
 
     override fun readStream(): ReadStream {
@@ -153,34 +184,57 @@ private fun <T : Any> readBytes(lastRead: List<TimeIntValue>, testFile: FileRef,
     }
 }
 
-data class Datapoint<T : Any>(override val time: Long) : Timeable
 
-data class DPDataCollection(override val start: Long, override val end: Long, override val file: FileRef) :
-    DataCollection, FileRefable
+val dp = Datapoint("cp1.state", 5L, 9)
 
-class DatapointsReadAccessor<T : Any>(
-    override val allDatas: List<DPDataCollection>,
-    override val readTimeable: ReadTimeable<Datapoint<T>, DPDataCollection>
-) : ReadAccessor<Datapoint<T>, DPDataCollection> {
-
+object JavaCurrentDataGetter : CurrentDateGetter {
+    override fun currentDate(): String {
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd").format(LocalDate.now())
+    }
 }
 
-class DPLRWStrategy<T : Any> : LRWStrategy<Datapoint<T>> {
-    override val fileName: String
-        get() = TODO("Not yet implemented")
-    override val mapper: StreamMapper<Datapoint<T>>
-        get() = TODO("Not yet implemented")
 
-    override fun readStream(): ReadStream {
-        TODO("Not yet implemented")
-    }
+fun main() {
+    val w = WriteData(JavaLRWSFactory, JavaFileRefFactory, JavaCurrentDataGetter, JavaFileRefFactory.createFile("main"))
+    w.write(StringStreamerFactory, Datapoint("sState", 5L, "HelloWorld"))
+//    val dir = File("main/2023-04-11/")
+//    dir.mkdirs()
+//    val file = File("main/2023-04-11/sState")
+//    val dout = DataOutputStream(GZIPOutputStream(FileOutputStream(file)))
+//    val string = "Hello Wolr"
+//    dout.writeBytes(string)
+//    dout.close()
+//    val d = try {
+//        GZIPInputStream(FileInputStream(file))
+//    } catch (t: FileNotFoundException) {
+//        throw t
+//    }
+//    val size = string.length
+//    val b = ByteArray(size)
+//    val x = d.read(b)
+//    println("x: $x")
+//    println("b: ${String(b)}")
 
-    override fun getNativeDataReceiver(): NativeDataReceiver {
-        TODO("Not yet implemented")
-    }
-
-    override fun getNativeDataGetter(size: Int): NativeDataGetter {
-        TODO("Not yet implemented")
-    }
+//    val fileFactory = JavaFileRefFactory
+//    val mainDir = fileFactory.createFile("main")
+//    mainDir.listFiles().forEach {
+//        it.listFiles().forEach {
+//            println("list: ${it.absolutePath}")
+//        }
+//    }
+//    val dir = fileFactory.createFile(mainDir, JavaCurrentDataGetter.currentDate())
+//    dir.mkdirs()
+//    val f = fileFactory.createFile(dir, "state.dp")
+//    val rw = JavaReadWriteStrategy(f, TimeIntValueMapper)
+//    val all = rw.read()
+//    rw.store(
+//        all + listOf(
+//            TimeIntValue(5L, 9),
+//        )
+//    )
+//    val read = rw.read()
+//    read.forEach {
+//        println("it: $it")
+//    }
 }
 
