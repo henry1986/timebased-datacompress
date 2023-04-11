@@ -1,9 +1,14 @@
 package org.daiv.tick
 
 import mu.KotlinLogging
+import org.daiv.time.isoTime
 import org.daiv.util.json.log
 import java.io.*
 import java.nio.ByteBuffer
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
@@ -30,9 +35,17 @@ object JavaFileRefFactory : FileRefFactory {
     override fun createFile(fileName: String): FileRef {
         return JavaFileRef(File(fileName))
     }
+
+    override fun createFile(dir: FileRef, fileName: String): FileRef {
+        return JavaFileRef(File("${dir.absolutePath}/$fileName"))
+    }
 }
 
 class JavaFileRef(val file: File) : FileRef {
+
+    override val absolutePath: String
+        get() = file.absolutePath
+
     override fun listFiles(): List<JavaFileRef> {
         return file.listFiles().map { JavaFileRef(it) }
     }
@@ -50,7 +63,6 @@ class JavaFileRef(val file: File) : FileRef {
     }
 
     override val fileName: String = file.name
-
 }
 
 class NativeOutputStreamReceiver(val dataOutputStream: DataOutputStream) : NativeDataReceiver {
@@ -75,11 +87,11 @@ class NativeOutputStreamReceiver(val dataOutputStream: DataOutputStream) : Nativ
     }
 }
 
-fun FileRef.toJavaFile() = if(this is JavaFileRef) file else File(fileName)
+fun FileRef.toJavaFile() = if (this is JavaFileRef) file else File(fileName)
 
-class JavaInputStreams(file: File) : ReadStream {
+class JavaInputStreams(file: FileRef) : ReadStream {
     val d = try {
-        GZIPInputStream(FileInputStream(file))
+        GZIPInputStream(FileInputStream(file.toJavaFile()))
     } catch (t: FileNotFoundException) {
         throw t
     }
@@ -98,22 +110,21 @@ class JavaInputStreams(file: File) : ReadStream {
     }
 }
 
-class JavaListReadWriteStrategyFactory<T:Any>(val mapper: StreamMapper<T>):ListReaderWriterFactory<T>{
+class JavaListReadWriteStrategyFactory<T : Any>(val mapper: StreamMapper<T>) : ListReaderWriterFactory<T> {
     override fun create(fileRef: FileRef): LRWStrategy<T> {
-        return JavaReadWriteStrategy(fileRef.toJavaFile(), mapper)
+        return JavaReadWriteStrategy(fileRef, mapper)
     }
 }
 
-class JavaReadWriteStrategy<T : Any>(val file: File, override val mapper: StreamMapper<T>) : LRWStrategy<T> {
-    override val fileName: String
-        get() = file.name
+class JavaReadWriteStrategy<T : Any>(val file: FileRef, override val mapper: StreamMapper<T>) : LRWStrategy<T>,
+    FileNameable by file {
 
     override fun readStream(): ReadStream {
         return JavaInputStreams(file)
     }
 
     override fun getNativeDataReceiver(): NativeDataReceiver {
-        return NativeOutputStreamReceiver(DataOutputStream(GZIPOutputStream(FileOutputStream(file))))
+        return NativeOutputStreamReceiver(DataOutputStream(GZIPOutputStream(FileOutputStream(file.toJavaFile()))))
     }
 
     override fun getNativeDataGetter(size: Int): NativeDataGetter {
@@ -121,13 +132,13 @@ class JavaReadWriteStrategy<T : Any>(val file: File, override val mapper: Stream
     }
 
     companion object {
-        fun <T : Any> create(file: File, mapper: StreamMapper<T>) =
+        fun <T : Any> create(file: FileRef, mapper: StreamMapper<T>) =
             JavaReadWriteStrategy(file, mapper)
     }
 }
 
 
-private fun <T : Any> readBytes(lastRead: List<TimeIntValue>, testFile: File, mapper: StreamMapper<T>) {
+private fun <T : Any> readBytes(lastRead: List<TimeIntValue>, testFile: FileRef, mapper: StreamMapper<T>) {
     val logger = KotlinLogging.logger {}
     val readBytes = JavaReadWriteStrategy.create(testFile, mapper).read()
     if (lastRead != readBytes) {
@@ -142,4 +153,34 @@ private fun <T : Any> readBytes(lastRead: List<TimeIntValue>, testFile: File, ma
     }
 }
 
+data class Datapoint<T : Any>(override val time: Long) : Timeable
+
+data class DPDataCollection(override val start: Long, override val end: Long, override val file: FileRef) :
+    DataCollection, FileRefable
+
+class DatapointsReadAccessor<T : Any>(
+    override val allDatas: List<DPDataCollection>,
+    override val readTimeable: ReadTimeable<Datapoint<T>, DPDataCollection>
+) : ReadAccessor<Datapoint<T>, DPDataCollection> {
+
+}
+
+class DPLRWStrategy<T : Any> : LRWStrategy<Datapoint<T>> {
+    override val fileName: String
+        get() = TODO("Not yet implemented")
+    override val mapper: StreamMapper<Datapoint<T>>
+        get() = TODO("Not yet implemented")
+
+    override fun readStream(): ReadStream {
+        TODO("Not yet implemented")
+    }
+
+    override fun getNativeDataReceiver(): NativeDataReceiver {
+        TODO("Not yet implemented")
+    }
+
+    override fun getNativeDataGetter(size: Int): NativeDataGetter {
+        TODO("Not yet implemented")
+    }
+}
 

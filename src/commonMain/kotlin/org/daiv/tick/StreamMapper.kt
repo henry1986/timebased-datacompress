@@ -84,6 +84,7 @@ interface FileNameable {
     val fileName: String
 }
 interface FileRef : FileNameable {
+    val absolutePath:String
     fun listFiles(): List<FileRef>
     fun delete()
     fun mkdirs()

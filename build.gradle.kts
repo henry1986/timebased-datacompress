@@ -4,9 +4,11 @@ buildscript {
     repositories {
         maven { url = uri("https://repo.gradle.org/gradle/libs-releases") }
         mavenCentral()
+        mavenLocal()
+//        maven ("https://s01.oss.sonatype.org/content/groups/public/")
     }
     dependencies {
-        classpath("org.daiv.dependency:DependencyHandling:0.1.52")
+        classpath("org.daiv.dependency:DependencyHandling:0.1.53")
     }
 }
 
@@ -20,8 +22,8 @@ plugins {
 
 val versions = org.daiv.dependency.DefaultDependencyBuilder(Versions.current())
 group = "org.daiv.timebased.datacompress"
-//version = versions.setVersion { coroutinesLib }
-version = "0.0.0-local"
+version = versions.setVersion { timebasedDatacompress }
+//version = "0.0.0-local"
 
 repositories {
     mavenCentral()
@@ -138,12 +140,12 @@ publishing {
     }
 }
 
-//versionPlugin {
-//    versionPluginBuilder = Versions.versionPluginBuilder {
-//        versionMember = { coroutinesLib }
-//        resetVersion = { copy(coroutinesLib = it) }
-//        publishTaskName = "publish"
-//    }
-//    setDepending(tasks, "publish")
-//}
+versionPlugin {
+    versionPluginBuilder = Versions.versionPluginBuilder {
+        versionMember = { timebasedDatacompress }
+        resetVersion = { copy(timebasedDatacompress = it) }
+        publishTaskName = "publish"
+    }
+    setDepending(tasks, "publish")
+}
 

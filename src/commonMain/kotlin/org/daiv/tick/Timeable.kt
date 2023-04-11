@@ -65,7 +65,7 @@ interface Listable<T : Any> {
     }
 }
 
-interface StringListable:Listable<String>{
+interface StringListable : Listable<String> {
     override val clazz: KClass<String>
         get() = String::class
 
@@ -147,7 +147,6 @@ interface Valueable {
 interface ValueTimeable : Valueable, Timeable
 
 
-
 interface Nameable {
     val name: String
 }
@@ -178,14 +177,15 @@ interface ReadTimeable<T : Timeable, in D : DataCollection> {
     fun read(fileData: D): List<T>
 }
 
-interface FileReader<T:Timeable>{
+interface FileReader<T : Timeable> {
     fun read(fileData: FileRefable): List<T>
 }
 
 interface DataAccessor<T : Timeable> : LastTime, FromToAccessor<T>, StartTimeFromToAccessor<T>, StartEndTime
 interface LastReadDataAccessor<T : Timeable> : DataAccessor<T>, LastBeforeReader<T>
 
-fun interface FileRefFactory {
+interface FileRefFactory {
     fun createFile(fileName: String): FileRef
+    fun createFile(dir: FileRef, fileName: String): FileRef
 }
 
