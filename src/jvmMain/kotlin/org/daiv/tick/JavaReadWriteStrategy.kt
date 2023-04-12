@@ -18,7 +18,7 @@ import javax.xml.crypto.Data
 class ByteBufferAdapter(val byteBuffer: ByteBuffer) : NativeDataGetter {
     override val byte: Byte
         get() = byteBuffer.get()
-    override val string:String
+    override val string: String
         get() {
             return String(byteBuffer.array().drop(byteBuffer.position()).toByteArray())
         }
@@ -52,7 +52,8 @@ object JavaFileRefFactory : FileRefFactory {
     }
 
     override fun createFile(dir: FileRef, fileName: String): FileRef {
-        return JavaFileRef(File("${dir.absolutePath}/$fileName"))
+        val f = File("${dir.absolutePath}/$fileName")
+        return JavaFileRef(f)
     }
 }
 
@@ -184,19 +185,42 @@ private fun <T : Any> readBytes(lastRead: List<TimeIntValue>, testFile: FileRef,
     }
 }
 
-
-val dp = Datapoint("cp1.state", 5L, 9)
-
 object JavaCurrentDataGetter : CurrentDateGetter {
     override fun currentDate(): String {
         return DateTimeFormatter.ofPattern("yyyy-MM-dd").format(LocalDate.now())
     }
 }
 
+fun JavaWriteDataFactory(fileName: String) =
+    WriteData(JavaLRWSFactory, JavaFileRefFactory, JavaCurrentDataGetter, JavaFileRefFactory.createFile(fileName))
+
+interface EnumStreamerBuilder<T : Enum<T>> : Endingable, StreamerFactory<Datapoint<T>> {
+    companion object {
+        fun <T : Enum<T>> enumStreamer(name: Header, ending: String, enumFactory: (Int) -> T) =
+            GenericStreamMapper(name, 4, ending, { writeInt(it.value.ordinal) }) { enumFactory(int) }
+    }
+}
+
+enum class TestWrite {
+    W1, W2;
+
+    companion object : StreamerFactory<Datapoint<TestWrite>> {
+        override val ending: String = "dpTestWrite"
+        override fun streamer(name: Header): EndingStreamMapper<Datapoint<TestWrite>> {
+            return EnumStreamerBuilder.enumStreamer(name, ending) { values()[it] }
+        }
+    }
+}
 
 fun main() {
-    val w = WriteData(JavaLRWSFactory, JavaFileRefFactory, JavaCurrentDataGetter, JavaFileRefFactory.createFile("main"))
-    w.write(StringStreamerFactory, Datapoint("sState", 5L, "HelloWorld"))
+    val w = JavaWriteDataFactory("main")
+    w.write(StringStreamerFactory, Datapoint(Header(listOf("uesa", "cp1"), "sState"), 5L, "HelloWorld"))
+    w.write(IntStreamerFactory, Datapoint(Header(listOf("uesa", "cp1"), "cpState"), 5L, 9))
+    w.write(TestWrite, Datapoint(Header(listOf("uesa", "cp1"), "testWrite"), 5L, TestWrite.W1))
+    val got = w.readDataPoints(StreamerFactory.streamer + TestWrite)
+    got.forEach {
+        println("it: $it")
+    }
 //    val dir = File("main/2023-04-11/")
 //    dir.mkdirs()
 //    val file = File("main/2023-04-11/sState")
