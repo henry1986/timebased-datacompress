@@ -128,7 +128,8 @@ interface StreamerFactory<T> : Endingable {
     fun streamer(name: Header): EndingStreamMapper<T>
 
     companion object {
-        val streamer: List<StreamerFactory<out Datapoint<*>>> = listOf(StringStreamerFactory, BooleanStreamMapperFactory, IntStreamerFactory, DoubleStreamerFactory)
+        val streamer: List<StreamerFactory<out Datapoint<*>>> =
+            listOf(StringStreamerFactory, BooleanStreamMapperFactory, IntStreamerFactory, DoubleStreamerFactory)
         val endingMap: Map<String, StreamerFactory<out Datapoint<*>>> = streamer.associateBy { it.ending }
     }
 }
@@ -162,8 +163,30 @@ class StringStreamer(val name: Header) : FlexibleStreamMapper<Datapoint<String>>
 
 }
 
+data class ColumnValue(val header: Header, val value: String)
+
+data class LogRow(val time: Long, val logColumn: List<ColumnValue>)
+
+data class DayLogRow(val day: String, val header: List<Header>, val rows: List<LogRow>)
+
+fun LogData.toRows(): DayLogRow {
+    val all = list.flatMap { it.list }
+    val header = all.map { it.header }.distinct()
+    val sorted = all.groupBy { it.time }.toList().sortedBy { it.first }
+        .map { LogRow(it.first, it.second.map { ColumnValue(it.header, it.value.toString()) }) }
+    return DayLogRow(day, header, sorted)
+}
+
 interface CurrentDateGetter {
     fun currentDate(): String
+}
+
+data class LogColumn(val list: List<Datapoint<*>>)
+
+data class LogData(val day: String, val list: List<LogColumn>){
+    override fun toString(): String {
+        return "$day to ${list.map { it.list + "\n" }}"
+    }
 }
 
 class WriteData(
@@ -176,22 +199,21 @@ class WriteData(
         write(streamerFactory.streamer(datapoint.header), datapoint)
     }
 
-    fun readDataPoints(streamMapperList: List<StreamerFactory<out Datapoint<*>>>): List<List<Datapoint<*>>> {
-        val dir = fFactory.createFile(mainDir, currentDateGetter.currentDate())
-        dir.mkdirs()
-        val files = dir.listFiles()
-        val streamMapperMap = streamMapperList.associateBy { it.ending }
-        val got = files.map {
-            val file = fFactory.createFile(dir, it.fileName)
-            val split = file.fileName.split(".")
-            val ending = split.last()
-            val headerList = split.dropLast(2)
-            val name = split.dropLast(1).last()
-            val streamMapper = streamMapperMap[ending]!!
-            val strategy = lRWStrategy.create(file, streamMapper.streamer(Header(headerList, name)))
-            strategy.read()
+    fun readDataPoints(streamMapperList: List<StreamerFactory<out Datapoint<*>>>): List<LogData> {
+        return mainDir.listFiles().map { dir ->
+            val files = dir.listFiles()
+            val streamMapperMap = streamMapperList.associateBy { it.ending }
+            LogData(dir.fileName, files.map {
+                val file = fFactory.createFile(dir, it.fileName)
+                val split = file.fileName.split(".")
+                val ending = split.last()
+                val headerList = split.dropLast(2)
+                val name = split.dropLast(1).last()
+                val streamMapper = streamMapperMap[ending]!!
+                val strategy = lRWStrategy.create(file, streamMapper.streamer(Header(headerList, name)))
+                LogColumn(strategy.read())
+            })
         }
-        return got
     }
 
     fun <R> write(streamMapper: EndingStreamMapper<Datapoint<R>>, datapoint: Datapoint<R>) {
@@ -203,7 +225,7 @@ class WriteData(
             strategy.store(listOf(datapoint))
         } else {
             val read = strategy.read()
-            println("read: $read")
+//            println("read: $read")
             strategy.store(read + datapoint)
         }
     }
