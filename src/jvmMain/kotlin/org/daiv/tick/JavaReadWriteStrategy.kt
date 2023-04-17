@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.util.stream.LongStream
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 import javax.xml.crypto.Data
@@ -194,12 +195,6 @@ object JavaCurrentDataGetter : CurrentDateGetter {
 fun JavaWriteDataFactory(fileName: String) =
     WriteData(JavaLRWSFactory, JavaFileRefFactory, JavaCurrentDataGetter, JavaFileRefFactory.createFile(fileName))
 
-interface EnumStreamerBuilder<T : Enum<T>> : Endingable, StreamerFactory<Datapoint<T>> {
-    companion object {
-        fun <T : Enum<T>> enumStreamer(name: Header, ending: String, enumFactory: (Int) -> T) =
-            GenericStreamMapper(name, 4, ending, { writeInt(it.value.ordinal) }) { enumFactory(int) }
-    }
-}
 
 enum class TestWrite {
     W1, W2;
@@ -212,11 +207,32 @@ enum class TestWrite {
     }
 }
 
+fun WriteData.writeInt(header: Header, value: Int, time: Long) =
+    write(LogDP(IntStreamerFactory, header, value), time)
+
+//fun WriteData.writeDouble(header: Header, value: Double) =
+//    write(LogDP(DoubleStreamerFactory, header, value))
+//
+//fun WriteData.writeLong(header: Header, value: Long) =
+//    write(LogDP(LongStreamerFactory, header, value))
+//
+fun <T : Enum<T>> WriteData.writeEnum(s: StreamerFactory<Datapoint<T>>, header: Header, value: T, time: Long) =
+    write(LogDP(s, header, value), time)
+
+
+fun WriteData.write(logDP: LogDP<*>, time:Long) {
+    logDP.write(this, time)
+}
+
+fun WriteData.writeString(header: Header, value: String, time: Long) =
+    write(LogDP(StringStreamerFactory, header, value), time)
+
+
 fun main() {
     val w = JavaWriteDataFactory("main")
-    w.write(StringStreamerFactory, Datapoint(Header(listOf("uesa", "cp1"), "sState"), 5L, "HelloWorld"))
-    w.write(IntStreamerFactory, Datapoint(Header(listOf("uesa", "cp1"), "cpState"), 5L, 9))
-    w.write(TestWrite, Datapoint(Header(listOf("uesa", "cp1"), "testWrite"), 5L, TestWrite.W1))
+    w.writeString(Header(listOf("uesa", "cp1"), "sState"), "HelloWorld", 5L)
+    w.writeInt(Header(listOf("uesa", "cp1"), "cpState"), 9, 5L)
+    w.writeEnum(TestWrite, Header(listOf("uesa", "cp1"), "testWrite"), TestWrite.W1, 5L)
     val got = w.readDataPoints(StreamerFactory.streamer + TestWrite)
     got.forEach {
         println("it: $it")

@@ -2,7 +2,8 @@ package org.daiv.tick
 
 import kotlin.test.Test
 
-class StreamMapperTest {
+class LogDataTest {
+
     @Test
     fun test() {
         val rows = LogData("2023-04-12",listOf(
@@ -29,5 +30,4 @@ class StreamMapperTest {
             println("it: $it")
         }
     }
-
 }
