@@ -232,7 +232,10 @@ class WriteData(
                 streamMapperMap[ending]?.let { streamMapper ->
                     val strategy = lRWStrategy.create(file, streamMapper.streamer(Header(headerList, name)))
                     LogColumn(strategy.read())
-                } ?: LogColumn(emptyList())
+                } ?: run {
+                    println("could not find $ending")
+                    LogColumn(emptyList())
+                }
             })
         }
     }

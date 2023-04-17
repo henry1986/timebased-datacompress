@@ -21,8 +21,8 @@ plugins {
 
 val versions = org.daiv.dependency.DefaultDependencyBuilder(Versions.current())
 group = "org.daiv.timebased.datacompress"
-//version = versions.setVersion { timebasedDatacompress }
-version = "0.0.2-local"
+version = versions.setVersion { timebasedDatacompress }
+//version = "0.0.2-local"
 
 repositories {
     mavenCentral()
