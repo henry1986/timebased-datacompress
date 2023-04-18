@@ -23,6 +23,21 @@ open class StoreStreamTest {
 
 data class TimeIntValue(override val time:Long, val value:Int):Timeable
 
+object TimeIntValueMapper:StreamMapper<TimeIntValue>{
+    override val size: Int = Long.SIZE_BYTES + Int.SIZE_BYTES
+
+    override fun toOutput(t: TimeIntValue, dataOutputStream: NativeDataReceiver) {
+        dataOutputStream.writeLong(t.time)
+        dataOutputStream.writeInt(t.value)
+    }
+
+    override fun toElement(byteBuffer: NativeDataGetter): TimeIntValue {
+        val time = byteBuffer.long
+        val value = byteBuffer.int
+        return TimeIntValue(time, value)
+    }
+}
+
 
 class StreamMapperTest : StoreStreamTest() {
 
@@ -31,3 +46,23 @@ class StreamMapperTest : StoreStreamTest() {
         TimeIntValueMapper.testMapper(TimeIntValue(5L, 9))
     }
 }
+
+data class TimeBooleanValue(val time: Long, val value: Boolean)
+
+object TimeBooleanValueMapper : StreamMapper<TimeBooleanValue> {
+    override val size: Int = 9
+
+    override fun toOutput(t: TimeBooleanValue, dataOutputStream: NativeDataReceiver) {
+        dataOutputStream.writeLong(t.time)
+        dataOutputStream.writeByte(if(t.value) 1 else 0)
+    }
+
+    override fun toElement(byteBuffer: NativeDataGetter): TimeBooleanValue {
+        val time = byteBuffer.long
+        val value = byteBuffer.byte.toInt() == 1
+        return TimeBooleanValue(time, value)
+    }
+}
+
+
+

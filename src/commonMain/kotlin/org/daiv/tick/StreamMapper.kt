@@ -2,12 +2,39 @@ package org.daiv.tick
 
 import mu.KotlinLogging
 
+/**
+ * Interface for mapping a data object to and from a stream of bytes.
+ *
+ * @param T the type of object being mapped.
+ */
 interface StreamMapper<T> {
+    /**
+     * Returns the size of the byte representation of an object of type T.
+     */
     val size: Int
 
+    /**
+     * Writes an object of type T to a data output stream.
+     *
+     * [t] the object to be written.
+     * [dataOutputStream] the data output stream to write the object to.
+     */
     fun toOutput(t: T, dataOutputStream: NativeDataReceiver)
+
+    /**
+     * Reads an object of type T from a byte buffer.
+     *
+     * @param byteBuffer the byte buffer to read the object from.
+     * @return the object read from the byte buffer.
+     */
     fun toElement(byteBuffer: NativeDataGetter): T
 }
+//interface StreamMapper<T> {
+//    val size: Int
+//
+//    fun toOutput(t: T, dataOutputStream: NativeDataReceiver)
+//    fun toElement(byteBuffer: NativeDataGetter): T
+//}
 
 interface Endingable {
     val ending: String
