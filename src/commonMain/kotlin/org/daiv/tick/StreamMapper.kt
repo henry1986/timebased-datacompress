@@ -2,28 +2,6 @@ package org.daiv.tick
 
 import mu.KotlinLogging
 
-interface NativeDataReceiver {
-    fun writeLong(l: Long)
-    fun writeDouble(d: Double)
-    fun writeString(string: String)
-    fun writeInt(i: Int)
-    fun writeByte(i: Int)
-    fun flush()
-    fun close()
-}
-
-interface NativeDataGetter {
-    val byte: Byte
-    val string: String
-    val long: Long
-    val double: Double
-    val int: Int
-    val position: Int
-    val array: ByteArray
-    fun put(src: ByteArray, offset: Int, length: Int)
-    fun flip(): NativeDataGetter
-}
-
 interface StreamMapper<T> {
     val size: Int
 
@@ -40,31 +18,6 @@ interface EndingStreamMapper<T> : StreamMapper<T>, Endingable {
 
 interface FlexibleStreamMapper<T> : EndingStreamMapper<T> {
     fun readSize(byteBuffer: NativeDataGetter): Int
-}
-
-
-class TimeEnumValueMapper<T : Enum<T>>(val factory: (Int) -> T) : StreamMapper<TimeEnumValue<T>> {
-    override val size = 8 + 4 // Long + Int
-    override fun toOutput(storedTick: TimeEnumValue<T>, dataOutputStream: NativeDataReceiver) =
-        storedTick.toOutput(dataOutputStream)
-
-    override fun toElement(byteBuffer: NativeDataGetter): TimeEnumValue<T> = byteBuffer.toTimeEnumValue(factory)
-}
-
-object TimeIntValueMapper : StreamMapper<TimeIntValue> {
-    override val size = 8 + 4 // Long + Int
-    override fun toOutput(storedTick: TimeIntValue, dataOutputStream: NativeDataReceiver) =
-        storedTick.toOutput(dataOutputStream) { storedTick.value }
-
-    override fun toElement(byteBuffer: NativeDataGetter): TimeIntValue = byteBuffer.toTimeIntValue()
-}
-
-object TimeDoubleValueMapper : StreamMapper<TimeDoubleValue> {
-    override val size = 8 + 8 // Long + Int
-    override fun toOutput(timeDoubleValue: TimeDoubleValue, dataOutputStream: NativeDataReceiver) =
-        timeDoubleValue.toNativeOutput(dataOutputStream) { writeDouble(timeDoubleValue.value) }
-
-    override fun toElement(byteBuffer: NativeDataGetter): TimeDoubleValue = byteBuffer.toTimeDoubleValue()
 }
 
 interface TValueable<T> {
@@ -177,89 +130,6 @@ class StringStreamer(val name: Header) : FlexibleStreamMapper<Datapoint<String>>
 
 }
 
-data class ColumnValue(val header: Header, val value: String)
-
-data class LogRow(val time: Long, val logColumn: List<ColumnValue>)
-
-data class DayLogRow(val day: String, val header: List<Header>, val rows: List<LogRow>)
-
-fun LogData.toRows(): DayLogRow {
-    val all = list.flatMap { it.list }
-    val header = all.map { it.header }.distinct()
-    val sorted = all.groupBy { it.time }.toList().sortedBy { it.first }
-        .map { LogRow(it.first, it.second.map { ColumnValue(it.header, it.value.toString()) }) }
-    return DayLogRow(day, header, sorted)
-}
-
-interface CurrentDateGetter {
-    fun currentDate(): String
-}
-
-data class LogColumn(val list: List<Datapoint<*>>)
-
-data class LogData(val day: String, val list: List<LogColumn>) {
-    override fun toString(): String {
-        return "$day to ${list.map { it.list + "\n" }}"
-    }
-}
-
-data class LogDP<T>(val streamerFactory: StreamerFactory<Datapoint<T>>, val header: Header, val value: T) {
-    fun write(writeData: WriteData, time: Long) {
-        writeData.write(streamerFactory, Datapoint(header, time, value))
-    }
-}
-
-class WriteData(
-    val lRWStrategy: LRWStrategyFactory,
-    val fFactory: FileRefFactory,
-    val currentDateGetter: CurrentDateGetter,
-    val mainDir: FileRef
-) {
-    fun <R> write(streamerFactory: StreamerFactory<Datapoint<R>>, datapoint: Datapoint<R>) {
-        write(streamerFactory.streamer(datapoint.header), datapoint)
-    }
-
-    fun readDataPoints(streamMapperList: List<StreamerFactory<out Datapoint<*>>>): List<LogData> {
-        return mainDir.listFiles().map { dir ->
-            val files = dir.listFiles()
-            val streamMapperMap = streamMapperList.associateBy { it.ending }
-            LogData(dir.fileName, files.map {
-                val file = fFactory.createFile(dir, it.fileName)
-                val split = file.fileName.split(".")
-                val ending = split.last()
-                val headerList = split.dropLast(2)
-                val name = split.dropLast(1).last()
-                streamMapperMap[ending]?.let { streamMapper ->
-                    val strategy = lRWStrategy.create(file, streamMapper.streamer(Header(headerList, name)))
-                    LogColumn(strategy.read())
-                } ?: run {
-                    println("could not find $ending")
-                    LogColumn(emptyList())
-                }
-            })
-        }
-    }
-
-    private fun <R> write(streamMapper: EndingStreamMapper<Datapoint<R>>, datapoint: Datapoint<R>) {
-        val dir = fFactory.createFile(mainDir, currentDateGetter.currentDate())
-        dir.mkdirs()
-        val file = fFactory.createFile(dir, datapoint.header.toName() + ".${streamMapper.ending}")
-        val strategy = lRWStrategy.create(file, streamMapper)
-        if (!file.exists()) {
-            strategy.store(listOf(datapoint))
-        } else {
-            val read = strategy.read()
-//            println("read: $read")
-            strategy.store(read + datapoint)
-        }
-    }
-}
-
-
-data class TimeIntValue(override val time: Long, val value: Int) : Timeable
-data class TimeDoubleValue(override val time: Long, val value: Double) : Timeable
-data class TimeEnumValue<T : Enum<T>>(override val time: Long, val value: T) : Timeable
-
 fun Timeable.toOutput(nativeDataReceiver: NativeDataReceiver, valueGetter: () -> Int) {
     toNativeOutput(nativeDataReceiver) { writeInt(valueGetter()) }
 }
@@ -267,26 +137,6 @@ fun Timeable.toOutput(nativeDataReceiver: NativeDataReceiver, valueGetter: () ->
 fun Timeable.toNativeOutput(nativeDataReceiver: NativeDataReceiver, write: NativeDataReceiver.() -> Unit) {
     nativeDataReceiver.writeLong(time)
     nativeDataReceiver.write()
-}
-
-fun <T : Enum<T>> TimeEnumValue<T>.toOutput(nativeDataReceiver: NativeDataReceiver) =
-    toOutput(nativeDataReceiver) { value.ordinal }
-
-fun TimeDoubleValue.toOutput(nativeDataReceiver: NativeDataReceiver) {
-    nativeDataReceiver.writeLong(time)
-    nativeDataReceiver.writeDouble(value)
-}
-
-fun <T : Enum<T>> NativeDataGetter.toTimeEnumValue(factory: (Int) -> T): TimeEnumValue<T> {
-    return TimeEnumValue(long, factory(int))
-}
-
-fun NativeDataGetter.toTimeIntValue(): TimeIntValue {
-    return TimeIntValue(long, int)
-}
-
-fun NativeDataGetter.toTimeDoubleValue(): TimeDoubleValue {
-    return TimeDoubleValue(long, double)
 }
 
 interface ReadStream {
@@ -382,28 +232,6 @@ interface LRWStrategy<T> : FileNameable, ListReaderWriter<T> {
     }
 }
 
-interface FileRefable {
-    val file: FileRef
-}
-
-data class FileDataInfo<out T>(
-    override val start: Long,
-    override val end: Long,
-    override val isCurrent: Boolean,
-    val folderFile: T
-) : CurrentDataCollection
-
-fun <T : FileRefable> FileDataInfo<T>.toWithRef() = FileDataInfoWithRef(start, end, isCurrent, folderFile)
-
-data class FileDataInfoWithRef<out T : FileRefable>(
-    override val start: Long,
-    override val end: Long,
-    override val isCurrent: Boolean,
-    val folderFile: T
-) : DataCollectionWithFileRef, FileRefable by folderFile
-
-
-interface DataCollectionWithFileRef : CurrentDataCollection, FileRefable
 
 class NewFileDataReader<T : Timeable>(val strategy: ListReaderWriterFactory<T>) :
     ReadTimeable<T, DataCollectionWithFileRef> {

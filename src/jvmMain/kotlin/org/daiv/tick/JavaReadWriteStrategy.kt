@@ -171,20 +171,20 @@ class JavaReadWriteStrategy<T>(val file: FileRef, override val mapper: StreamMap
 }
 
 
-private fun <T : Any> readBytes(lastRead: List<TimeIntValue>, testFile: FileRef, mapper: StreamMapper<T>) {
-    val logger = KotlinLogging.logger {}
-    val readBytes = JavaReadWriteStrategy.create(testFile, mapper).read()
-    if (lastRead != readBytes) {
-        logger.error { "readBytes are unequal, size of read: ${readBytes.size} vs ${lastRead.size}" }
-        val last = readBytes.take(50)
-        last.log(logger)
-        if (lastRead.take(40) != readBytes.take(40)) {
-            logger.error { "first are unequal ${lastRead.last()} vs ${readBytes.last()}" }
-        }
-    } else {
-        logger.trace { "succes!" }
-    }
-}
+//private fun <T : Any> readBytes(lastRead: List<TimeIntValue>, testFile: FileRef, mapper: StreamMapper<T>) {
+//    val logger = KotlinLogging.logger {}
+//    val readBytes = JavaReadWriteStrategy.create(testFile, mapper).read()
+//    if (lastRead != readBytes) {
+//        logger.error { "readBytes are unequal, size of read: ${readBytes.size} vs ${lastRead.size}" }
+//        val last = readBytes.take(50)
+//        last.log(logger)
+//        if (lastRead.take(40) != readBytes.take(40)) {
+//            logger.error { "first are unequal ${lastRead.last()} vs ${readBytes.last()}" }
+//        }
+//    } else {
+//        logger.trace { "succes!" }
+//    }
+//}
 
 object JavaCurrentDataGetter : CurrentDateGetter {
     override fun currentDate(): String {

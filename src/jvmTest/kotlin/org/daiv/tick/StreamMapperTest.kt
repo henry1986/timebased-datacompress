@@ -21,6 +21,9 @@ open class StoreStreamTest {
     }
 }
 
+data class TimeIntValue(override val time:Long, val value:Int):Timeable
+
+
 class StreamMapperTest : StoreStreamTest() {
 
     @Test
