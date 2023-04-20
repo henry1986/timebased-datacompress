@@ -18,6 +18,8 @@ interface NativeDataGetter {
     val int: Int
     val position: Int
     val array: ByteArray
+    val limit:Int
     fun put(src: ByteArray, offset: Int, length: Int)
     fun flip(): NativeDataGetter
+
 }

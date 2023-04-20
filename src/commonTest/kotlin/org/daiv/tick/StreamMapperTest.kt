@@ -30,4 +30,50 @@ class LogDataTest {
             println("it: $it")
         }
     }
+
+    class NativeDataGetterMock:NativeDataGetter{
+        override val byte: Byte
+            get() = TODO("Not yet implemented")
+        override val string: String
+            get() = TODO("Not yet implemented")
+        override val long: Long
+            get() = TODO("Not yet implemented")
+        override val double: Double
+            get() = TODO("Not yet implemented")
+        override val int: Int
+            get() = TODO("Not yet implemented")
+        override val position: Int
+            get() = TODO("Not yet implemented")
+        override val array: ByteArray
+            get() = TODO("Not yet implemented")
+
+        override fun put(src: ByteArray, offset: Int, length: Int) {
+            TODO("Not yet implemented")
+        }
+
+        override fun flip(): NativeDataGetter {
+            TODO("Not yet implemented")
+        }
+
+    }
+
+    class ReadStreamMock:ReadStream{
+        override fun read(byteArray: ByteArray): Int {
+            TODO("Not yet implemented")
+        }
+
+        override fun close() {
+            TODO("Not yet implemented")
+        }
+
+        override fun readInt(): Int {
+            TODO("Not yet implemented")
+        }
+
+    }
+
+//    @Test
+//    fun read(){
+//        NativeDataGetterMock().read(5, )
+//    }
 }

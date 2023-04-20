@@ -116,7 +116,13 @@ interface StreamerFactory<T> : Endingable {
 
     companion object {
         val streamer: List<StreamerFactory<out Datapoint<*>>> =
-            listOf(StringStreamerFactory, BooleanStreamMapperFactory, IntStreamerFactory, DoubleStreamerFactory, LongStreamerFactory)
+            listOf(
+                StringStreamerFactory,
+                BooleanStreamMapperFactory,
+                IntStreamerFactory,
+                DoubleStreamerFactory,
+                LongStreamerFactory
+            )
         val endingMap: Map<String, StreamerFactory<out Datapoint<*>>> = streamer.associateBy { it.ending }
     }
 }
@@ -167,7 +173,7 @@ fun Timeable.toNativeOutput(nativeDataReceiver: NativeDataReceiver, write: Nativ
 }
 
 interface ReadStream {
-    fun read(byteArray: ByteArray): Int
+    fun read(byteArray: ByteArray, off:Int, len:Int): Int
     fun close()
     fun readInt(): Int
 }
@@ -192,6 +198,27 @@ interface LRWStrategyFactory {
     fun <T> create(file: FileRef, mapper: StreamMapper<T>): LRWStrategy<T>
 }
 
+fun NativeDataGetter.read(size: Int, d: ReadStream): NativeDataGetter {
+    val buffer: NativeDataGetter = this
+    val bytes = ByteArray(size)
+    var read = 0
+    do {
+        val newlyRead = d.read(bytes, read, size - read)
+        if (newlyRead == -1) {
+            break
+        }
+        read += newlyRead
+        try {
+            buffer.put(bytes, 0, newlyRead)
+        } catch (t: Throwable) {
+            throw RuntimeException("faild: ${bytes.size}, $read, $newlyRead, ${buffer.limit}", t)
+        }
+    } while (read != -1 && read != size)
+    buffer.flip()
+    return buffer
+}
+
+
 interface LRWStrategy<T> : FileNameable, ListReaderWriter<T> {
     val mapper: StreamMapper<T>
     fun readStream(): ReadStream
@@ -206,18 +233,7 @@ interface LRWStrategy<T> : FileNameable, ListReaderWriter<T> {
     }
 
     private fun read(size: Int, d: ReadStream): NativeDataGetter {
-        val buffer = getNativeDataGetter(size)
-        val bytes = ByteArray(size)
-        do {
-            var read = d.read(bytes)
-            try {
-                buffer.put(bytes, 0, read)
-            } catch (t: Throwable) {
-                throw t
-            }
-        } while (read != -1 && read != size)
-        buffer.flip()
-        return buffer
+        return getNativeDataGetter(size).read(size, d)
     }
 
     private fun readFlexibleSizedData(): List<T> {

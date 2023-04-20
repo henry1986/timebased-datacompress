@@ -36,8 +36,21 @@ class ByteBufferAdapter(val byteBuffer: ByteBuffer) : NativeDataGetter {
     override val array
         get() = byteBuffer.array()
 
+    /**
+     * returns this buffer limit
+     */
+    override val limit: Int
+        get() = byteBuffer.limit()
+
     override fun put(src: ByteArray, offset: Int, length: Int) {
-        byteBuffer.put(src, offset, length)
+        try {
+            byteBuffer.put(src, offset, length)
+        } catch (t: Throwable) {
+            throw RuntimeException(
+                "put failed $src, $offset, $length, while ${byteBuffer.position()} and ${byteBuffer.limit()}",
+                t
+            )
+        }
     }
 
     override fun flip(): ByteBufferAdapter {
@@ -123,9 +136,8 @@ class JavaInputStreams(file: FileRef) : ReadStream {
     }
 
     val pr = DataInputStream(d)
-    override fun read(byteArray: ByteArray): Int {
-
-        return d.read(byteArray)
+    override fun read(byteArray: ByteArray, off: Int, len: Int): Int {
+        return d.read(byteArray, off, len)
     }
 
     override fun close() {
@@ -220,7 +232,7 @@ fun <T : Enum<T>> WriteData.writeEnum(s: StreamerFactory<Datapoint<T>>, header: 
     write(LogDP(s, header, value), time)
 
 
-fun WriteData.write(logDP: LogDP<*>, time:Long) {
+fun WriteData.write(logDP: LogDP<*>, time: Long) {
     logDP.write(this, time)
 }
 
