@@ -116,7 +116,7 @@ interface StreamerFactory<T> : Endingable {
 
     companion object {
         val streamer: List<StreamerFactory<out Datapoint<*>>> =
-            listOf(StringStreamerFactory, BooleanStreamMapperFactory, IntStreamerFactory, DoubleStreamerFactory)
+            listOf(StringStreamerFactory, BooleanStreamMapperFactory, IntStreamerFactory, DoubleStreamerFactory, LongStreamerFactory)
         val endingMap: Map<String, StreamerFactory<out Datapoint<*>>> = streamer.associateBy { it.ending }
     }
 }

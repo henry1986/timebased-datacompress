@@ -41,16 +41,20 @@ class WriteData(
             val streamMapperMap = streamMapperList.associateBy { it.ending }
             LogData(dir.fileName, files.map {
                 val file = fFactory.createFile(dir, it.fileName)
-                val split = file.fileName.split(".")
-                val ending = split.last()
-                val headerList = split.dropLast(2)
-                val name = split.dropLast(1).last()
-                streamMapperMap[ending]?.let { streamMapper ->
-                    val strategy = lRWStrategy.create(file, streamMapper.streamer(Header(headerList, name)))
-                    LogColumn(strategy.read())
-                } ?: run {
-                    println("could not find $ending")
-                    LogColumn(emptyList())
+                try {
+                    val split = file.fileName.split(".")
+                    val ending = split.last()
+                    val headerList = split.dropLast(2)
+                    val name = split.dropLast(1).last()
+                    streamMapperMap[ending]?.let { streamMapper ->
+                        val strategy = lRWStrategy.create(file, streamMapper.streamer(Header(headerList, name)))
+                        LogColumn(strategy.read())
+                    } ?: run {
+                        println("could not find $ending")
+                        LogColumn(emptyList())
+                    }
+                } catch (t: Throwable) {
+                    throw RuntimeException("reading error at file ${file.fileName}", t)
                 }
             })
         }
@@ -66,12 +70,16 @@ class WriteData(
         val dir = fFactory.createFile(mainDir, currentDateGetter.currentDate())
         dir.mkdirs()
         val file = fFactory.createFile(dir, datapoint.header.toName() + ".${streamMapper.ending}")
-        val strategy = lRWStrategy.create(file, streamMapper)
-        if (!file.exists()) {
-            strategy.store(listOf(datapoint))
-        } else {
-            val read = strategy.read()
-            strategy.store(read + datapoint)
+        try {
+            val strategy = lRWStrategy.create(file, streamMapper)
+            if (!file.exists()) {
+                strategy.store(listOf(datapoint))
+            } else {
+                val read = strategy.read()
+                strategy.store(read + datapoint)
+            }
+        } catch (t: Throwable) {
+            throw RuntimeException("writing error at file ${file.fileName}", t)
         }
     }
 }
