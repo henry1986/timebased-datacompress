@@ -15,7 +15,7 @@ fun LogData.toRows(): DayLogRow {
 }
 
 
-data class LogColumn(val list: List<Datapoint<*>>)
+data class LogColumn(val header: Header, val list: List<Datapoint<*>>)
 
 data class LogData(val day: String, val list: List<LogColumn>) {
     override fun toString(): String {

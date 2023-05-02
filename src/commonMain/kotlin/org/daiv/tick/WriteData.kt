@@ -1,5 +1,7 @@
 package org.daiv.tick
 
+import mu.KotlinLogging
+
 
 interface CurrentDateGetter {
     fun currentDate(): String
@@ -19,6 +21,11 @@ class WriteData(
     val currentDateGetter: CurrentDateGetter,
     val mainDir: FileRef
 ) {
+
+    companion object {
+        private val logger = KotlinLogging.logger { }
+    }
+
     /**
      * Writes a [Datapoint] to a file using the given [StreamerFactory].
      *
@@ -41,20 +48,22 @@ class WriteData(
             val streamMapperMap = streamMapperList.associateBy { it.ending }
             LogData(dir.fileName, files.map {
                 val file = fFactory.createFile(dir, it.fileName)
+                val split = file.fileName.split(".")
+                val ending = split.last()
+                val headerList = split.dropLast(2)
+                val name = split.dropLast(1).last()
+                val header = Header(headerList, name)
                 try {
-                    val split = file.fileName.split(".")
-                    val ending = split.last()
-                    val headerList = split.dropLast(2)
-                    val name = split.dropLast(1).last()
                     streamMapperMap[ending]?.let { streamMapper ->
-                        val strategy = lRWStrategy.create(file, streamMapper.streamer(Header(headerList, name)))
-                        LogColumn(strategy.read())
+                        val strategy = lRWStrategy.create(file, streamMapper.streamer(header))
+                        LogColumn(header, strategy.read())
                     } ?: run {
                         println("could not find $ending")
-                        LogColumn(emptyList())
+                        LogColumn(header, emptyList())
                     }
                 } catch (t: Throwable) {
-                    throw RuntimeException("reading error at file ${file.fileName}", t)
+                    logger.error(t) { "reading error at file ${file.fileName}" }
+                    LogColumn(header, emptyList())
                 }
             })
         }
@@ -75,7 +84,12 @@ class WriteData(
             if (!file.exists()) {
                 strategy.store(listOf(datapoint))
             } else {
-                val read = strategy.read()
+                val read: List<Datapoint<R>> = try {
+                    strategy.read()
+                } catch (t: Throwable) {
+                    logger.error(t){"reading error at file ${file.fileName}"}
+                    emptyList()
+                }
                 strategy.store(read + datapoint)
             }
         } catch (t: Throwable) {

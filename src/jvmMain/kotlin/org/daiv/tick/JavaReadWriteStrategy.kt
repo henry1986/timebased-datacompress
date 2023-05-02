@@ -240,15 +240,49 @@ fun WriteData.writeString(header: Header, value: String, time: Long) =
     write(LogDP(StringStreamerFactory, header, value), time)
 
 
-fun main() {
-    val w = JavaWriteDataFactory("main")
-    w.writeString(Header(listOf("uesa", "cp1"), "sState"), "HelloWorld", 5L)
-    w.writeInt(Header(listOf("uesa", "cp1"), "cpState"), 9, 5L)
-    w.writeEnum(TestWrite, Header(listOf("uesa", "cp1"), "testWrite"), TestWrite.W1, 5L)
+private fun writeLoop(w: WriteData, time: Long) {
+//    w.writeString(Header(listOf("uesa", "cp1"), "sState"), "HelloWorld", time)
+//    w.writeString(Header(listOf("cp1"), "cp1.- EV CP-state resolved"), "resolvedValue", time)
+//    w.writeString(Header(listOf("cp2"), "cp2.- EV CP-state resolved"), "resolvedValue", time)
+//    w.writeString(Header(listOf("cp3"), "cp3.- EV CP-state resolved"), "resolvedValue", time)
+//    w.writeInt(Header(listOf("uesa", "cp1"), "cpState"), 9, time)
+    w.writeEnum(TestWrite, Header(listOf("uesa", "cp1"), "testWrite"), TestWrite.W1, time)
+}
+
+private fun writeTest() {
+    val w: WriteData = JavaWriteDataFactory("main")
+    writeLoop(w, 5L)
     val got = w.readDataPoints(StreamerFactory.streamer + TestWrite)
     got.forEach {
         println("it: $it")
     }
+}
+
+private fun writeMultipleTimes() {
+    val w: WriteData = JavaWriteDataFactory("main")
+    var counter = 0
+    while (counter < 232) {
+        try {
+            writeLoop(w, counter * 10L)
+            println("counter: $counter")
+            counter++
+        } catch (t: Throwable) {
+            throw RuntimeException("error at $counter", t)
+        }
+    }
+    val got = w.readDataPoints(StreamerFactory.streamer + TestWrite)
+    got.forEach {
+        it.list.forEach {
+            println("name: ${it.header}")
+            it.list.forEach {
+                println("time: ${it.time}: ${it.value}")
+            }
+        }
+    }
+}
+
+fun main() {
+    writeMultipleTimes()
 //    val dir = File("main/2023-04-11/")
 //    dir.mkdirs()
 //    val file = File("main/2023-04-11/sState")
