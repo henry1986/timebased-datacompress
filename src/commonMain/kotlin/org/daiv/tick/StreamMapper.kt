@@ -195,7 +195,7 @@ interface FileRef : FileNameable {
 }
 
 interface LRWStrategyFactory {
-    fun <T> create(file: FileRef, mapper: StreamMapper<T>): LRWStrategy<T>
+    fun <T> create(file: FileRef, mapper: StreamMapper<T>, withCompression: Boolean): LRWStrategy<T>
 }
 
 fun NativeDataGetter.read(size: Int, d: ReadStream): NativeDataGetter {

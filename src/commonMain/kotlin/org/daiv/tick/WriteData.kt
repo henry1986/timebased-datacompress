@@ -14,12 +14,14 @@ interface CurrentDateGetter {
  * @property fFactory The file reference factory.
  * @property currentDateGetter The current date getter.
  * @property mainDir The main directory where data files are stored.
+ * @property withCompression if the data needs to be compressed or not
  */
 class WriteData(
     val lRWStrategy: LRWStrategyFactory,
     val fFactory: FileRefFactory,
     val currentDateGetter: CurrentDateGetter,
-    val mainDir: FileRef
+    val mainDir: FileRef,
+    val withCompression: Boolean
 ) {
 
     companion object {
@@ -55,7 +57,7 @@ class WriteData(
                 val header = Header(headerList, name)
                 try {
                     streamMapperMap[ending]?.let { streamMapper ->
-                        val strategy = lRWStrategy.create(file, streamMapper.streamer(header))
+                        val strategy = lRWStrategy.create(file, streamMapper.streamer(header), withCompression)
                         LogColumn(header, strategy.read())
                     } ?: run {
                         println("could not find $ending")
@@ -80,7 +82,7 @@ class WriteData(
         dir.mkdirs()
         val file = fFactory.createFile(dir, datapoint.header.toName() + ".${streamMapper.ending}")
         try {
-            val strategy = lRWStrategy.create(file, streamMapper)
+            val strategy = lRWStrategy.create(file, streamMapper, withCompression)
             if (!file.exists()) {
                 strategy.store(listOf(datapoint))
             } else {

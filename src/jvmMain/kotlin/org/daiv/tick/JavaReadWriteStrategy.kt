@@ -128,9 +128,13 @@ class NativeOutputStreamReceiver(val dataOutputStream: DataOutputStream) : Nativ
 
 fun FileRef.toJavaFile() = if (this is JavaFileRef) file else File(fileName)
 
-class JavaInputStreams(file: FileRef) : ReadStream {
+class JavaInputStreams(val file: FileRef, val withCompression: Boolean) : ReadStream {
+    fun create(): FileInputStream {
+        return FileInputStream(file.toJavaFile())
+    }
+
     val d = try {
-        GZIPInputStream(FileInputStream(file.toJavaFile()))
+        if (withCompression) GZIPInputStream(create()) else create()
     } catch (t: FileNotFoundException) {
         throw t
     }
@@ -149,27 +153,39 @@ class JavaInputStreams(file: FileRef) : ReadStream {
     }
 }
 
-class JavaListReadWriteStrategyFactory<T : Any>(val mapper: StreamMapper<T>) : ListReaderWriterFactory<T> {
+class JavaListReadWriteStrategyFactory<T : Any>(val mapper: StreamMapper<T>, val withCompression: Boolean) : ListReaderWriterFactory<T> {
     override fun create(fileRef: FileRef): LRWStrategy<T> {
-        return JavaReadWriteStrategy(fileRef, mapper)
+        return JavaReadWriteStrategy(fileRef, mapper, withCompression)
     }
 }
 
 object JavaLRWSFactory : LRWStrategyFactory {
-    override fun <T> create(file: FileRef, mapper: StreamMapper<T>): LRWStrategy<T> {
-        return JavaReadWriteStrategy(file, mapper)
+    override fun <T> create(file: FileRef, mapper: StreamMapper<T>, withCompression: Boolean): LRWStrategy<T> {
+        return JavaReadWriteStrategy(file, mapper, withCompression)
     }
 }
 
-class JavaReadWriteStrategy<T>(val file: FileRef, override val mapper: StreamMapper<T>) : LRWStrategy<T>,
+class JavaReadWriteStrategy<T>(
+    val file: FileRef,
+    override val mapper: StreamMapper<T>,
+    val withCompression: Boolean
+) : LRWStrategy<T>,
     FileNameable by file {
 
     override fun readStream(): ReadStream {
-        return JavaInputStreams(file)
+        return JavaInputStreams(file, withCompression)
+    }
+
+    private fun create(): OutputStream {
+        return FileOutputStream(file.toJavaFile())
     }
 
     override fun getNativeDataReceiver(): NativeDataReceiver {
-        return NativeOutputStreamReceiver(DataOutputStream(GZIPOutputStream(FileOutputStream(file.toJavaFile()))))
+        return NativeOutputStreamReceiver(
+            DataOutputStream(
+                if (withCompression) GZIPOutputStream(create()) else create()
+            )
+        )
     }
 
     override fun getNativeDataGetter(size: Int): NativeDataGetter {
@@ -177,8 +193,8 @@ class JavaReadWriteStrategy<T>(val file: FileRef, override val mapper: StreamMap
     }
 
     companion object {
-        fun <T : Any> create(file: FileRef, mapper: StreamMapper<T>) =
-            JavaReadWriteStrategy(file, mapper)
+        fun <T : Any> create(file: FileRef, mapper: StreamMapper<T>,  withCompression: Boolean) =
+            JavaReadWriteStrategy(file, mapper, withCompression)
     }
 }
 
@@ -204,8 +220,8 @@ object JavaCurrentDataGetter : CurrentDateGetter {
     }
 }
 
-fun JavaWriteDataFactory(fileName: String) =
-    WriteData(JavaLRWSFactory, JavaFileRefFactory, JavaCurrentDataGetter, JavaFileRefFactory.createFile(fileName))
+fun JavaWriteDataFactory(fileName: String, withCompression: Boolean) =
+    WriteData(JavaLRWSFactory, JavaFileRefFactory, JavaCurrentDataGetter, JavaFileRefFactory.createFile(fileName), withCompression)
 
 
 enum class TestWrite {
@@ -250,7 +266,7 @@ private fun writeLoop(w: WriteData, time: Long) {
 }
 
 private fun writeTest() {
-    val w: WriteData = JavaWriteDataFactory("main")
+    val w: WriteData = JavaWriteDataFactory("main", false)
     writeLoop(w, 5L)
     val got = w.readDataPoints(StreamerFactory.streamer + TestWrite)
     got.forEach {
@@ -259,7 +275,7 @@ private fun writeTest() {
 }
 
 private fun writeMultipleTimes() {
-    val w: WriteData = JavaWriteDataFactory("main")
+    val w: WriteData = JavaWriteDataFactory("main", false)
     var counter = 0
     while (counter < 232) {
         try {
