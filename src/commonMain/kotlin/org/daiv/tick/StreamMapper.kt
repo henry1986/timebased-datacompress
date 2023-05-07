@@ -173,7 +173,7 @@ fun Timeable.toNativeOutput(nativeDataReceiver: NativeDataReceiver, write: Nativ
 }
 
 interface ReadStream {
-    fun read(byteArray: ByteArray, off:Int, len:Int): Int
+    fun read(byteArray: ByteArray, off: Int, len: Int): Int
     fun close()
     fun readInt(): Int
 }
@@ -243,7 +243,12 @@ interface LRWStrategy<T> : FileNameable, ListReaderWriter<T> {
 
         val ticks = mutableListOf<T>()
         for (i in 1..maxEntrys) {
-            val stringLength = d.readInt()
+            val stringLength = try {
+                d.readInt()
+            } catch (t: Throwable) {
+                logger.error { "could not read anymore, currently read: $ticks" }
+                break
+            }
             val x = mapper.size + stringLength
             ticks.add(mapper.toElement(read(x, d)))
         }

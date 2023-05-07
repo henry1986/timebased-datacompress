@@ -7,7 +7,7 @@ buildscript {
 //        maven ("https://s01.oss.sonatype.org/content/groups/public/")
     }
     dependencies {
-        classpath("org.daiv.dependency:DependencyHandling:0.1.58")
+        classpath("org.daiv.dependency:DependencyHandling:0.1.59")
     }
 }
 
@@ -22,7 +22,7 @@ plugins {
 val versions = org.daiv.dependency.DefaultDependencyBuilder(Versions.current())
 group = "org.daiv.timebased.datacompress"
 version = versions.setVersion { timebasedDatacompress }
-//version = "0.0.4-local"
+//version = "0.0.7-local"
 
 repositories {
     mavenCentral()
