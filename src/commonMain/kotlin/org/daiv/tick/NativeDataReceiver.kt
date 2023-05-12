@@ -10,7 +10,8 @@ interface NativeDataReceiver {
     fun close()
 }
 
-interface NativeDataGetter {
+
+interface NativeDataGetter:NativeDataReader<NativeDataGetter> {
     val byte: Byte
     val string: String
     val long: Long
@@ -19,7 +20,4 @@ interface NativeDataGetter {
     val position: Int
     val array: ByteArray
     val limit:Int
-    fun put(src: ByteArray, offset: Int, length: Int)
-    fun flip(): NativeDataGetter
-
 }

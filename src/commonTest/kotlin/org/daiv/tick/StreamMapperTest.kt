@@ -79,6 +79,10 @@ class LogDataTest {
             TODO("Not yet implemented")
         }
 
+        override fun read(): Int {
+            TODO("Not yet implemented")
+        }
+
     }
 
 //    @Test

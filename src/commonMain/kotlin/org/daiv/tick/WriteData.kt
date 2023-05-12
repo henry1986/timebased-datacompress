@@ -1,10 +1,54 @@
 package org.daiv.tick
 
 import mu.KotlinLogging
+import org.daiv.tick.streamer.StreamerFactory
 
 
 interface CurrentDateGetter {
     fun currentDate(): String
+}
+
+interface StoringFile {
+    fun <R> onFile(
+        file: FileRef,
+        strategy: ListReaderWriter,
+        streamMapper: StreamMapper<Datapoint<R>>,
+        datapoint: Datapoint<R>
+    )
+}
+
+object WithRead : StoringFile {
+    private val logger = KotlinLogging.logger{}
+
+    override fun <R> onFile(
+        file: FileRef,
+        strategy: ListReaderWriter,
+        streamMapper: StreamMapper<Datapoint<R>>,
+        datapoint: Datapoint<R>
+    ) {
+        if (!file.exists()) {
+            strategy.store(streamMapper, listOf(datapoint))
+        } else {
+            val read: List<Datapoint<R>> = try {
+                strategy.read(streamMapper)
+            } catch (t: Throwable) {
+                logger.error(t) { "reading error at file ${file.fileName}" }
+                emptyList()
+            }
+            strategy.store(streamMapper, read + datapoint)
+        }
+    }
+}
+
+object WithoutRead : StoringFile {
+    override fun <R> onFile(
+        file: FileRef,
+        strategy: ListReaderWriter,
+        streamMapper: StreamMapper<Datapoint<R>>,
+        datapoint: Datapoint<R>
+    ) {
+        strategy.store(streamMapper, listOf(datapoint))
+    }
 }
 
 /**
@@ -17,11 +61,12 @@ interface CurrentDateGetter {
  * @property withCompression if the data needs to be compressed or not
  */
 class WriteData(
-    val lRWStrategy: LRWStrategyFactory,
+    val listReaderWriter: ListReaderWriter,
     val fFactory: FileRefFactory,
     val currentDateGetter: CurrentDateGetter,
     val mainDir: FileRef,
-    val withCompression: Boolean
+    val withCompression: Boolean,
+    val storingFile: StoringFile
 ) {
 
     companion object {
@@ -56,9 +101,9 @@ class WriteData(
                 val name = split.dropLast(1).last()
                 val header = Header(headerList, name)
                 try {
-                    streamMapperMap[ending]?.let { streamMapper ->
-                        val strategy = lRWStrategy.create(file, streamMapper.streamer(header), withCompression)
-                        LogColumn(header, strategy.read())
+                    streamMapperMap[ending]?.let { streamerFactory ->
+                        val streamMapper = streamerFactory.streamer(header)
+                        LogColumn(header, listReaderWriter.read(streamMapper))
                     } ?: run {
                         println("could not find $ending")
                         LogColumn(header, emptyList())
@@ -77,25 +122,21 @@ class WriteData(
      * @param streamMapper The ending stream mapper to use for writing the datapoint.
      * @param datapoint The datapoint to be written.
      */
-    private fun <R> write(streamMapper: EndingStreamMapper<Datapoint<R>>, datapoint: Datapoint<R>) {
-        val dir = fFactory.createFile(mainDir, currentDateGetter.currentDate())
-        dir.mkdirs()
-        val file = fFactory.createFile(dir, datapoint.header.toName() + ".${streamMapper.ending}")
+    private fun <R> write(
+        streamMapper: EndingStreamMapper<Datapoint<R>>,
+        datapoint: Datapoint<R>,
+    ) {
+        val file = createFile(datapoint, streamMapper.ending)
         try {
-            val strategy = lRWStrategy.create(file, streamMapper, withCompression)
-            if (!file.exists()) {
-                strategy.store(listOf(datapoint))
-            } else {
-                val read: List<Datapoint<R>> = try {
-                    strategy.read()
-                } catch (t: Throwable) {
-                    logger.error(t){"reading error at file ${file.fileName}"}
-                    emptyList()
-                }
-                strategy.store(read + datapoint)
-            }
+            storingFile.onFile(file, listReaderWriter,streamMapper, datapoint)
         } catch (t: Throwable) {
             throw RuntimeException("writing error at file ${file.fileName}", t)
         }
+    }
+
+    private fun <R> createFile(datapoint: Datapoint<R>, ending: String): FileRef {
+        val dir = fFactory.createFile(mainDir, currentDateGetter.currentDate())
+        dir.mkdirs()
+        return fFactory.createFile(dir, datapoint.header.toName() + ".${ending}")
     }
 }

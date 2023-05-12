@@ -64,105 +64,6 @@ interface Headerable {
 data class Datapoint<T>(override val header: Header, override val time: Long, override val value: T) : Timeable,
     TValueable<T>, Headerable
 
-class GenericStreamMapper<T>(
-    val header: Header,
-    addSize: Int,
-    override val ending: String,
-    val write: NativeDataReceiver.(Datapoint<T>) -> Unit,
-    val getT: NativeDataGetter.() -> T
-) : EndingStreamMapper<Datapoint<T>> {
-    override val size: Int = 8 + addSize
-
-    override fun toOutput(t: Datapoint<T>, dataOutputStream: NativeDataReceiver) {
-        t.toNativeOutput(dataOutputStream) { write(t) }
-    }
-
-    override fun toElement(byteBuffer: NativeDataGetter): Datapoint<T> {
-        return Datapoint(header, byteBuffer.long, byteBuffer.getT())
-    }
-}
-
-object BooleanStreamMapperFactory : StreamerFactory<Datapoint<Boolean>> {
-    override val ending: String = "dpBoolean"
-    override fun streamer(name: Header): EndingStreamMapper<Datapoint<Boolean>> {
-        return GenericStreamMapper(name, 1, ending, { writeByte(if (it.value) 1 else 0) }, { byte.toInt() != 0 })
-    }
-}
-
-
-object DoubleStreamerFactory : StreamerFactory<Datapoint<Double>> {
-    override val ending: String = "dpDouble"
-    override fun streamer(name: Header): EndingStreamMapper<Datapoint<Double>> {
-        return GenericStreamMapper(name, 8, ending, { writeDouble(it.value) }, { double })
-    }
-}
-
-object LongStreamerFactory : StreamerFactory<Datapoint<Long>> {
-    override val ending: String = "dpLong"
-    override fun streamer(name: Header): EndingStreamMapper<Datapoint<Long>> {
-        return GenericStreamMapper(name, 8, ending, { writeLong(it.value) }, { long })
-    }
-}
-
-object IntStreamerFactory : StreamerFactory<Datapoint<Int>> {
-    override val ending: String = "dpInt"
-    override fun streamer(name: Header): EndingStreamMapper<Datapoint<Int>> {
-        return GenericStreamMapper(name, 4, ending, { writeInt(it.value) }) { int }
-    }
-}
-
-interface StreamerFactory<T> : Endingable {
-    fun streamer(name: Header): EndingStreamMapper<T>
-
-    companion object {
-        val streamer: List<StreamerFactory<out Datapoint<*>>> =
-            listOf(
-                StringStreamerFactory,
-                BooleanStreamMapperFactory,
-                IntStreamerFactory,
-                DoubleStreamerFactory,
-                LongStreamerFactory
-            )
-        val endingMap: Map<String, StreamerFactory<out Datapoint<*>>> = streamer.associateBy { it.ending }
-    }
-}
-
-object StringStreamerFactory : StreamerFactory<Datapoint<String>> {
-    override val ending: String = "dpString"
-
-    override fun streamer(name: Header): EndingStreamMapper<Datapoint<String>> {
-        return StringStreamer(name)
-    }
-}
-
-interface EnumStreamerBuilder<T : Enum<T>> : Endingable, StreamerFactory<Datapoint<T>> {
-    companion object {
-        fun <T : Enum<T>> enumStreamer(name: Header, ending: String, enumFactory: (Int) -> T) =
-            GenericStreamMapper(name, 4, ending, { writeInt(it.value.ordinal) }) { enumFactory(int) }
-    }
-}
-
-class StringStreamer(val name: Header) : FlexibleStreamMapper<Datapoint<String>> {
-    override val size: Int = 8
-
-    override val ending: String = StringStreamerFactory.ending
-
-    override fun toOutput(t: Datapoint<String>, dataOutputStream: NativeDataReceiver) {
-        dataOutputStream.writeInt(t.value.length)
-        dataOutputStream.writeLong(t.time)
-        dataOutputStream.writeString(t.value)
-    }
-
-    override fun readSize(byteBuffer: NativeDataGetter): Int {
-        return byteBuffer.int
-    }
-
-    override fun toElement(byteBuffer: NativeDataGetter): Datapoint<String> {
-        return Datapoint(name, byteBuffer.long, byteBuffer.string)
-    }
-
-}
-
 fun Timeable.toOutput(nativeDataReceiver: NativeDataReceiver, valueGetter: () -> Int) {
     toNativeOutput(nativeDataReceiver) { writeInt(valueGetter()) }
 }
@@ -172,14 +73,42 @@ fun Timeable.toNativeOutput(nativeDataReceiver: NativeDataReceiver, write: Nativ
     nativeDataReceiver.write()
 }
 
-interface ReadStream {
-    fun read(byteArray: ByteArray, off: Int, len: Int): Int
+interface Closeable {
     fun close()
-    fun readInt(): Int
 }
 
-interface ListReaderWriterFactory<T : Any> {
-    fun create(fileRef: FileRef): ListReaderWriter<T>
+fun interface ByteArrayReader {
+    fun read(byteArray: ByteArray, off: Int, len: Int): Int
+}
+
+interface ReadStream : Closeable, ByteArrayReader {
+    fun readInt(): Int
+
+    /**
+     * returns -1, if end of stream is reached
+     */
+    fun read(): Int
+}
+
+interface ListReaderWriterFactory {
+    val storingFile: StoringFile
+    fun create(lrwCreator: LRWCreator): ListReaderWriter
+
+    object LRWStrategyFactory : ListReaderWriterFactory {
+        override val storingFile: StoringFile = WithRead
+
+        override fun create(lrwCreator: LRWCreator): ListReaderWriter {
+            return LRWStrategy(lrwCreator)
+        }
+    }
+
+    object StepByStepFactory : ListReaderWriterFactory {
+        override val storingFile: StoringFile = WithoutRead
+
+        override fun create(lrwCreator: LRWCreator): ListReaderWriter {
+            return StepByStepPlacer(lrwCreator)
+        }
+    }
 }
 
 interface FileNameable {
@@ -194,37 +123,75 @@ interface FileRef : FileNameable {
     fun exists(): Boolean
 }
 
-interface LRWStrategyFactory {
-    fun <T> create(file: FileRef, mapper: StreamMapper<T>, withCompression: Boolean): LRWStrategy<T>
-}
-
-fun NativeDataGetter.read(size: Int, d: ReadStream): NativeDataGetter {
-    val buffer: NativeDataGetter = this
-    val bytes = ByteArray(size)
-    var read = 0
-    do {
-        val newlyRead = d.read(bytes, read, size - read)
-        if (newlyRead == -1) {
-            break
-        }
-        read += newlyRead
-        try {
-            buffer.put(bytes, 0, newlyRead)
-        } catch (t: Throwable) {
-            throw RuntimeException("faild: ${bytes.size}, $read, $newlyRead, ${buffer.limit}", t)
-        }
-    } while (read != -1 && read != size)
-    buffer.flip()
-    return buffer
-}
-
-
-interface LRWStrategy<T> : FileNameable, ListReaderWriter<T> {
+interface StreamMapperHolder<T> {
     val mapper: StreamMapper<T>
+}
+
+interface LRWCreator {
     fun readStream(): ReadStream
     fun getNativeDataReceiver(): NativeDataReceiver
     fun getNativeDataGetter(size: Int): NativeDataGetter
-    override fun store(ticks: List<T>) {
+}
+
+
+class StepByStepPlacer(creator: LRWCreator) : ListReaderWriter, LRWCreator by creator {
+
+    companion object {
+        private val logger = KotlinLogging.logger { }
+    }
+
+    override fun <T> store(mapper: StreamMapper<T>, ticks: List<T>) {
+        val d = getNativeDataReceiver()
+        ticks.forEach {
+            d.writeByte(5)
+            d.writeInt(mapper.size)
+            mapper.toOutput(it, d)
+        }
+        d.flush()
+        d.close()
+    }
+
+    private fun read(size: Int, d: ReadStream): NativeDataGetter {
+        return getNativeDataGetter(size).read(size, d)
+    }
+
+    private fun <T> readFlexibleSizedData(mapper: StreamMapper<out T>): List<T> {
+        val d = readStream()
+
+        val ticks = mutableListOf<T>()
+        while (d.read() != -1) {
+            val stringLength = try {
+                d.readInt()
+            } catch (t: Throwable) {
+                logger.error { "could not read anymore, currently read: $ticks" }
+                break
+            }
+            val x = mapper.size + stringLength
+            ticks.add(mapper.toElement(read(x, d)))
+        }
+        d.close()
+        return ticks
+    }
+
+    override fun <T> read(mapper: StreamMapper<out T>): List<T> {
+        if (mapper is FlexibleStreamMapper) {
+            return readFlexibleSizedData(mapper)
+        }
+        val d = readStream()
+        val mutableList = mutableListOf<T>()
+        while (d.read() != -1) {
+            val size = d.readInt()
+            val e = mapper.toElement(getNativeDataGetter(size))
+            mutableList.add(e)
+        }
+        d.close()
+        return mutableList.toList()
+    }
+}
+
+class LRWStrategy(creator: LRWCreator) : ListReaderWriter, LRWCreator by creator {
+
+    override fun <T> store(mapper: StreamMapper<T>, ticks: List<T>) {
         val d = getNativeDataReceiver()
         d.writeInt(ticks.size)
         ticks.forEach { mapper.toOutput(it, d) }
@@ -236,8 +203,7 @@ interface LRWStrategy<T> : FileNameable, ListReaderWriter<T> {
         return getNativeDataGetter(size).read(size, d)
     }
 
-    private fun readFlexibleSizedData(): List<T> {
-        val mapper = mapper as FlexibleStreamMapper
+    private fun <T> readFlexibleSizedData(mapper: StreamMapper<out T>): List<T> {
         val d = readStream()
         val maxEntrys = d.readInt()
 
@@ -256,14 +222,13 @@ interface LRWStrategy<T> : FileNameable, ListReaderWriter<T> {
         return ticks
     }
 
-    override fun read(): List<T> {
-
+    override fun <T> read(mapper: StreamMapper<out T>): List<T> {
         if (mapper is FlexibleStreamMapper) {
-            return readFlexibleSizedData()
+            return readFlexibleSizedData(mapper)
         }
         val d = readStream()
         val size = d.readInt() * mapper.size
-        logger.trace { "file: $fileName size: $size" }
+//        logger.trace { "file: $fileName size: $size" }
         val buffer = read(size, d)
 
         val ticks = mutableListOf<T>()
@@ -281,14 +246,14 @@ interface LRWStrategy<T> : FileNameable, ListReaderWriter<T> {
 }
 
 
-class NewFileDataReader<T : Timeable>(val strategy: ListReaderWriterFactory<T>) :
-    ReadTimeable<T, DataCollectionWithFileRef> {
-    override fun read(fileData: DataCollectionWithFileRef): List<T> {
-        return strategy.create(fileData.file).read()
-    }
-}
+//class NewFileDataReader<T : Timeable>(val strategy: ListReaderWriterFactory<T>) :
+//    ReadTimeable<T, DataCollectionWithFileRef> {
+//    override fun read(fileData: DataCollectionWithFileRef): List<T> {
+//        return strategy.create(fileData.file).read()
+//    }
+//}
 
-interface ListReaderWriter<T> {
-    fun store(ticks: List<T>)
-    fun read(): List<T>
+interface ListReaderWriter {
+    fun <T> store(mapper: StreamMapper<T>, ticks: List<T>)
+    fun <T> read(mapper: StreamMapper<out T>): List<T>
 }

@@ -1,5 +1,7 @@
 package org.daiv.tick
 
+import org.daiv.tick.streamer.StreamerFactory
+
 data class ColumnValue(val header: Header, val value: String)
 
 data class LogRow(val time: Long, val logColumn: List<ColumnValue>)
