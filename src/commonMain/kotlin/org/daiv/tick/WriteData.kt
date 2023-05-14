@@ -11,21 +11,26 @@ interface CurrentDateGetter {
 interface StoringFile {
     fun <R> onFile(
         file: FileRef,
-        strategy: ListReaderWriter,
+        withCompression: Boolean,
+        strategyFactory: ListReaderWriterFactory,
+        ioStreamGeneratorFactory: IOStreamGeneratorFactory,
         streamMapper: StreamMapper<Datapoint<R>>,
         datapoint: Datapoint<R>
     )
 }
 
 object WithRead : StoringFile {
-    private val logger = KotlinLogging.logger{}
+    private val logger = KotlinLogging.logger {}
 
     override fun <R> onFile(
         file: FileRef,
-        strategy: ListReaderWriter,
+        withCompression: Boolean,
+        strategyFactory: ListReaderWriterFactory,
+        ioStreamGeneratorFactory: IOStreamGeneratorFactory,
         streamMapper: StreamMapper<Datapoint<R>>,
         datapoint: Datapoint<R>
     ) {
+        val strategy = strategyFactory.create(ioStreamGeneratorFactory.create(file, withCompression))
         if (!file.exists()) {
             strategy.store(streamMapper, listOf(datapoint))
         } else {
@@ -43,11 +48,14 @@ object WithRead : StoringFile {
 object WithoutRead : StoringFile {
     override fun <R> onFile(
         file: FileRef,
-        strategy: ListReaderWriter,
+        withCompression: Boolean,
+        strategyFactory: ListReaderWriterFactory,
+        ioStreamGeneratorFactory: IOStreamGeneratorFactory,
         streamMapper: StreamMapper<Datapoint<R>>,
         datapoint: Datapoint<R>
     ) {
-        strategy.store(streamMapper, listOf(datapoint))
+        strategyFactory.create(ioStreamGeneratorFactory.create(file, withCompression))
+            .store(streamMapper, listOf(datapoint))
     }
 }
 
@@ -61,7 +69,8 @@ object WithoutRead : StoringFile {
  * @property withCompression if the data needs to be compressed or not
  */
 class WriteData(
-    val listReaderWriter: ListReaderWriter,
+    val listReaderWriterFactory: ListReaderWriterFactory,
+    val ioStreamGeneratorFactory: IOStreamGeneratorFactory,
     val fFactory: FileRefFactory,
     val currentDateGetter: CurrentDateGetter,
     val mainDir: FileRef,
@@ -103,7 +112,7 @@ class WriteData(
                 try {
                     streamMapperMap[ending]?.let { streamerFactory ->
                         val streamMapper = streamerFactory.streamer(header)
-                        LogColumn(header, listReaderWriter.read(streamMapper))
+                        LogColumn(header, listReaderWriterFactory.create(ioStreamGeneratorFactory.create(file, withCompression)).read(streamMapper))
                     } ?: run {
                         println("could not find $ending")
                         LogColumn(header, emptyList())
@@ -128,7 +137,7 @@ class WriteData(
     ) {
         val file = createFile(datapoint, streamMapper.ending)
         try {
-            storingFile.onFile(file, listReaderWriter,streamMapper, datapoint)
+            storingFile.onFile(file,withCompression, listReaderWriterFactory, ioStreamGeneratorFactory, streamMapper, datapoint)
         } catch (t: Throwable) {
             throw RuntimeException("writing error at file ${file.fileName}", t)
         }

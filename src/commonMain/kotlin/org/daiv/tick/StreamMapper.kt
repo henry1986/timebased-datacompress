@@ -92,12 +92,12 @@ interface ReadStream : Closeable, ByteArrayReader {
 
 interface ListReaderWriterFactory {
     val storingFile: StoringFile
-    fun create(lrwCreator: LRWCreator): ListReaderWriter
+    fun create(lrwCreator: IOStreamGenerator): ListReaderWriter
 
     object LRWStrategyFactory : ListReaderWriterFactory {
         override val storingFile: StoringFile = WithRead
 
-        override fun create(lrwCreator: LRWCreator): ListReaderWriter {
+        override fun create(lrwCreator: IOStreamGenerator): ListReaderWriter {
             return LRWStrategy(lrwCreator)
         }
     }
@@ -105,7 +105,7 @@ interface ListReaderWriterFactory {
     object StepByStepFactory : ListReaderWriterFactory {
         override val storingFile: StoringFile = WithoutRead
 
-        override fun create(lrwCreator: LRWCreator): ListReaderWriter {
+        override fun create(lrwCreator: IOStreamGenerator): ListReaderWriter {
             return StepByStepPlacer(lrwCreator)
         }
     }
@@ -127,14 +127,18 @@ interface StreamMapperHolder<T> {
     val mapper: StreamMapper<T>
 }
 
-interface LRWCreator {
+interface IOStreamGenerator {
     fun readStream(): ReadStream
     fun getNativeDataReceiver(): NativeDataReceiver
     fun getNativeDataGetter(size: Int): NativeDataGetter
 }
 
+interface IOStreamGeneratorFactory {
+    fun create(fileRef: FileRef, withCompression: Boolean): IOStreamGenerator
+}
 
-class StepByStepPlacer(creator: LRWCreator) : ListReaderWriter, LRWCreator by creator {
+
+class StepByStepPlacer(creator: IOStreamGenerator) : ListReaderWriter, IOStreamGenerator by creator {
 
     companion object {
         private val logger = KotlinLogging.logger { }
@@ -181,7 +185,11 @@ class StepByStepPlacer(creator: LRWCreator) : ListReaderWriter, LRWCreator by cr
         val mutableList = mutableListOf<T>()
         while (d.read() != -1) {
             val size = d.readInt()
-            val e = mapper.toElement(getNativeDataGetter(size))
+            val e = try {
+                mapper.toElement(getNativeDataGetter(size).read(size, d))
+            } catch (t: Throwable) {
+                throw RuntimeException("error with $",t)
+            }
             mutableList.add(e)
         }
         d.close()
@@ -189,7 +197,7 @@ class StepByStepPlacer(creator: LRWCreator) : ListReaderWriter, LRWCreator by cr
     }
 }
 
-class LRWStrategy(creator: LRWCreator) : ListReaderWriter, LRWCreator by creator {
+class LRWStrategy(creator: IOStreamGenerator) : ListReaderWriter, IOStreamGenerator by creator {
 
     override fun <T> store(mapper: StreamMapper<T>, ticks: List<T>) {
         val d = getNativeDataReceiver()

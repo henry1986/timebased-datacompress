@@ -1,24 +1,15 @@
 package org.daiv.tick
 
-import mu.KotlinLogging
 import org.daiv.tick.streamer.EnumStreamerBuilder
 import org.daiv.tick.streamer.IntStreamerFactory
 import org.daiv.tick.streamer.StreamerFactory
 import org.daiv.tick.streamer.StringStreamerFactory
-import org.daiv.time.isoTime
-import org.daiv.util.json.log
 import java.io.*
 import java.nio.ByteBuffer
-import java.nio.charset.Charset
-import java.nio.charset.StandardCharsets
 import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import java.util.stream.LongStream
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
-import javax.xml.crypto.Data
 
 class ByteBufferAdapter(val byteBuffer: ByteBuffer) : NativeDataGetter {
     override val byte: Byte
@@ -162,10 +153,17 @@ class JavaInputStreams(val file: FileRef, val withCompression: Boolean) : ReadSt
     }
 }
 
-class JavaReadWriteStrategy(
+object JavaIOStreamGeneratorFactory:IOStreamGeneratorFactory{
+    override fun create(fileRef: FileRef, withCompression: Boolean): IOStreamGenerator {
+        return JavaIOStreamGenerator(fileRef, withCompression)
+    }
+
+}
+
+class JavaIOStreamGenerator(
     val file: FileRef,
     val withCompression: Boolean
-) : LRWCreator, FileNameable by file {
+) : IOStreamGenerator, FileNameable by file {
 
     override fun readStream(): ReadStream {
         return JavaInputStreams(file, withCompression)
@@ -189,7 +187,7 @@ class JavaReadWriteStrategy(
 
     companion object {
         fun <T : Any> create(file: FileRef, mapper: StreamMapper<T>, withCompression: Boolean) =
-            JavaReadWriteStrategy(file, withCompression)
+            JavaIOStreamGenerator(file, withCompression)
     }
 }
 
@@ -222,7 +220,8 @@ fun JavaWriteDataFactory(
 ): WriteData {
     val file = JavaFileRefFactory.createFile(fileName)
     return WriteData(
-        listReaderWriterFactory.create(JavaReadWriteStrategy(file, withCompression)),
+        listReaderWriterFactory,
+        JavaIOStreamGeneratorFactory,
         JavaFileRefFactory,
         JavaCurrentDataGetter,
         file,
@@ -269,8 +268,8 @@ private fun writeLoop(w: WriteData, time: Long) {
 //    w.writeString(Header(listOf("cp1"), "cp1.- EV CP-state resolved"), "resolvedValue", time)
 //    w.writeString(Header(listOf("cp2"), "cp2.- EV CP-state resolved"), "resolvedValue", time)
 //    w.writeString(Header(listOf("cp3"), "cp3.- EV CP-state resolved"), "resolvedValue", time)
-//    w.writeInt(Header(listOf("uesa", "cp1"), "cpState"), 9, time)
-    w.writeEnum(TestWrite, Header(listOf("uesa", "cp1"), "testWrite"), TestWrite.W1, time)
+    w.writeInt(Header(listOf("uesa", "cp1"), "cpState"), 9, time)
+//    w.writeEnum(TestWrite, Header(listOf("uesa", "cp1"), "testWrite"), TestWrite.W1, time)
 }
 
 private fun writeTest(storingFile: StoringFile) {
@@ -283,7 +282,7 @@ private fun writeTest(storingFile: StoringFile) {
 }
 
 private fun writeMultipleTimes() {
-    val w: WriteData = JavaWriteDataFactory("main", false, ListReaderWriterFactory.LRWStrategyFactory)
+    val w: WriteData = JavaWriteDataFactory("main", false, ListReaderWriterFactory.StepByStepFactory)
     var counter = 0
     while (counter < 232) {
         try {
@@ -355,10 +354,7 @@ private class ArrayTester {
 }
 
 fun main() {
-    val x = true
-    val y = true
-    println("Пося hat Dich wie oft lieb? ${x == y} mal")
-//    writeMultipleTimes()
+    writeMultipleTimes()
 //    ArrayTester().testByteBuffer()
 //    TestC.testDataoutputStream()
 //    TestC.readFile()
