@@ -22,16 +22,16 @@ class GenericStreamMapper<T>(
     val header: Header,
     addSize: Int,
     override val ending: String,
-    val write: NativeDataReceiver.(Datapoint<T>) -> Unit,
-    val getT: NativeDataGetter.() -> T
+    val write: NativeDataWriter.(Datapoint<T>) -> Unit,
+    val getT: NativeData.() -> T
 ) : EndingStreamMapper<Datapoint<T>> {
     override val size: Int = 8 + addSize
 
-    override fun toOutput(t: Datapoint<T>, dataOutputStream: NativeDataReceiver) {
+    override fun toOutput(t: Datapoint<T>, dataOutputStream: NativeDataWriter) {
         t.toNativeOutput(dataOutputStream) { write(t) }
     }
 
-    override fun toElement(byteBuffer: NativeDataGetter): Datapoint<T> {
+    override fun toElement(byteBuffer: NativeData): Datapoint<T> {
         return Datapoint(header, byteBuffer.long, byteBuffer.getT())
     }
 }

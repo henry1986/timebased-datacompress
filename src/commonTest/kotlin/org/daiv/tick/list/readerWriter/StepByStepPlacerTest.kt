@@ -26,6 +26,9 @@ class StepByStepPlacerTest {
         }
 
         override fun read(): Int {
+            if(list.isEmpty()){
+                return -1
+            }
             return list.removeFirst()
         }
 
@@ -49,7 +52,7 @@ class StepByStepPlacerTest {
         }
     }
 
-    class NativeDataReceiverMock(val closeHandler: CloseHandler = CloseHandler()) : NativeDataReceiver,
+    class NativeDataReceiverMock(val closeHandler: CloseHandler = CloseHandler()) : NativeDataWriter,
         Closeable by closeHandler {
         val list: MutableList<Int> = mutableListOf()
 
@@ -77,9 +80,9 @@ class StepByStepPlacerTest {
         }
     }
 
-    class NativeDataGetterMock : NativeDataGetter {
+    class NativeDataGetterMock(val list: MutableList<Int>) : NativeData {
         override val byte: Byte
-            get() = TODO("Not yet implemented")
+            get() = list.removeFirst().toByte()
         override val string: String
             get() = TODO("Not yet implemented")
         override val long: Long
@@ -87,49 +90,35 @@ class StepByStepPlacerTest {
         override val double: Double
             get() = TODO("Not yet implemented")
         override val int: Int
-            get() = TODO("Not yet implemented")
-        override val position: Int
-            get() = TODO("Not yet implemented")
-        override val array: ByteArray
-            get() = TODO("Not yet implemented")
-        override val limit: Int
-            get() = TODO("Not yet implemented")
-
-        override fun put(src: ByteArray, offset: Int, length: Int) {
-            TODO("Not yet implemented")
-        }
-
-        override fun flip(): NativeDataGetter {
-            TODO("Not yet implemented")
-        }
+            get() = list.removeFirst()
     }
 
 
-    class IOStreamerGeneratorMock(private val readList: MutableList<Int>) : IOStreamGenerator {
+    class IOStreamerGeneratorMock(private val readList: MutableList<Int>) : IOStream {
         val r = ReadStreamMock(readList)
         val writer = NativeDataReceiverMock()
-        val buffer = NativeDataGetterMock()
         override fun readStream(): ReadStream {
             return r
         }
 
-        override fun getNativeDataReceiver(): NativeDataReceiver {
+        override fun getNativeDataReceiver(): NativeDataWriter {
             return writer
         }
 
-        override fun getNativeDataGetter(size: Int): NativeDataGetter {
-            return buffer
+
+        override fun read(size: Int, d: ReadStream): NativeData {
+            return NativeDataGetterMock(readList)
         }
     }
 
     class StreamMapperMock : StreamMapper<Int> {
         override val size: Int = 4
 
-        override fun toOutput(t: Int, dataOutputStream: NativeDataReceiver) {
+        override fun toOutput(t: Int, dataOutputStream: NativeDataWriter) {
             dataOutputStream.writeInt(t)
         }
 
-        override fun toElement(byteBuffer: NativeDataGetter): Int {
+        override fun toElement(byteBuffer: NativeData): Int {
             return byteBuffer.int
         }
 
@@ -137,11 +126,11 @@ class StepByStepPlacerTest {
 
     @Test
     fun test() {
-        val streamer = IOStreamerGeneratorMock(mutableListOf(5, 4, 4, 5, 4, 6))
+        val streamer = IOStreamerGeneratorMock(mutableListOf(5, 4, 5, 6))
         val s = StepByStepPlacer(streamer)
         val toRead = listOf(4, 6)
         s.store(StreamMapperMock(), toRead)
-        assertEquals(listOf(5, 4, 4, 5, 4, 6), streamer.writer.list)
+        assertEquals(listOf(5, 4, 5, 6), streamer.writer.list)
         val got = s.read(StreamMapperMock())
         assertEquals(toRead, got)
     }

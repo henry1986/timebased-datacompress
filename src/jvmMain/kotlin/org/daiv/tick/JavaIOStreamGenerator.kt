@@ -91,7 +91,7 @@ class JavaFileRef(val file: File) : FileRef {
     override val fileName: String = file.name
 }
 
-class NativeOutputStreamReceiver(val dataOutputStream: DataOutputStream) : NativeDataReceiver {
+class NativeOutputStreamReceiver(val dataOutputStream: DataOutputStream) : NativeDataWriter {
     override fun writeLong(l: Long) {
         dataOutputStream.writeLong(l)
     }
@@ -145,7 +145,6 @@ class JavaInputStreams(val file: FileRef, val withCompression: Boolean) : ReadSt
     }
 
     override fun readInt(): Int {
-        pr.read()
         return pr.readInt()
     }
 
@@ -174,7 +173,7 @@ class JavaIOStreamGenerator(
         return FileOutputStream(file.toJavaFile(), true)
     }
 
-    override fun getNativeDataReceiver(): NativeDataReceiver {
+    override fun getNativeDataReceiver(): NativeDataWriter {
         return NativeOutputStreamReceiver(
             DataOutputStream(
                 if (withCompression) GZIPOutputStream(create()) else create()
@@ -268,8 +267,8 @@ private fun writeLoop(w: WriteData, time: Long) {
 //    w.writeString(Header(listOf("uesa", "cp1"), "sState"), "HelloWorld", time)
 //    w.writeString(Header(listOf("cp1"), "cp1.- EV CP-state resolved"), "resolvedValue", time)
 //    w.writeString(Header(listOf("cp2"), "cp2.- EV CP-state resolved"), "resolvedValue", time)
-    w.writeString(Header(listOf("cp3"), "cp3.- EV CP-state resolved"), "resolvedValue", time)
-//    w.writeInt(Header(listOf("uesa", "cp1"), "cpState"), 9, time)
+//    w.writeString(Header(listOf("cp3"), "cp3.- EV CP-state resolved"), "resolvedValue", time)
+    w.writeInt(Header(listOf("uesa", "cp1"), "cpState"), 9, time)
 //    w.writeEnum(TestWrite, Header(listOf("uesa", "cp1"), "testWrite"), TestWrite.W1, time)
 }
 
@@ -285,7 +284,7 @@ private fun writeTest(storingFile: StoringFile) {
 private fun writeMultipleTimes() {
     val w: WriteData = JavaWriteDataFactory("main", false, ListReaderWriterFactory.StepByStepFactory)
     var counter = 0
-    while (counter < 1) {
+    while (counter < 10) {
         try {
             writeLoop(w, counter * 10L)
             println("counter: $counter")

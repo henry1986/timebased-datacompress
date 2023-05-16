@@ -7,7 +7,7 @@ buildscript {
 //        maven ("https://s01.oss.sonatype.org/content/groups/public/")
     }
     dependencies {
-        classpath("org.daiv.dependency:DependencyHandling:0.1.59")
+        classpath("org.daiv.dependency:DependencyHandling:0.1.60")
     }
 }
 

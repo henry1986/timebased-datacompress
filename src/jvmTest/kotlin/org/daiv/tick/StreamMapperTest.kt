@@ -26,12 +26,12 @@ data class TimeIntValue(override val time:Long, val value:Int):Timeable
 object TimeIntValueMapper:StreamMapper<TimeIntValue>{
     override val size: Int = Long.SIZE_BYTES + Int.SIZE_BYTES
 
-    override fun toOutput(t: TimeIntValue, dataOutputStream: NativeDataReceiver) {
+    override fun toOutput(t: TimeIntValue, dataOutputStream: NativeDataWriter) {
         dataOutputStream.writeLong(t.time)
         dataOutputStream.writeInt(t.value)
     }
 
-    override fun toElement(byteBuffer: NativeDataGetter): TimeIntValue {
+    override fun toElement(byteBuffer: NativeData): TimeIntValue {
         val time = byteBuffer.long
         val value = byteBuffer.int
         return TimeIntValue(time, value)
@@ -52,12 +52,12 @@ data class TimeBooleanValue(val time: Long, val value: Boolean)
 object TimeBooleanValueMapper : StreamMapper<TimeBooleanValue> {
     override val size: Int = 9
 
-    override fun toOutput(t: TimeBooleanValue, dataOutputStream: NativeDataReceiver) {
+    override fun toOutput(t: TimeBooleanValue, dataOutputStream: NativeDataWriter) {
         dataOutputStream.writeLong(t.time)
         dataOutputStream.writeByte(if(t.value) 1 else 0)
     }
 
-    override fun toElement(byteBuffer: NativeDataGetter): TimeBooleanValue {
+    override fun toElement(byteBuffer: NativeData): TimeBooleanValue {
         val time = byteBuffer.long
         val value = byteBuffer.byte.toInt() == 1
         return TimeBooleanValue(time, value)

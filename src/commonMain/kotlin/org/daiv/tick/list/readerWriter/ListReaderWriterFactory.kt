@@ -24,36 +24,37 @@ interface ListReaderWriterFactory {
     }
 }
 
-class LRWStrategy(creator: IOStreamGenerator) : ListReaderWriter, IOStreamGenerator by creator {
+class LRWStrategy(creator: IOStream) : ListReaderWriter, IOStream by creator {
 
     override fun <T> store(mapper: StreamMapper<T>, ticks: List<T>) {
         val d = getNativeDataReceiver()
-        d.writeInt(ticks.size)
-        ticks.forEach { mapper.toOutput(it, d) }
-        d.flush()
-        d.close()
-    }
-
-    private fun read(size: Int, d: ReadStream): NativeDataGetter {
-        return getNativeDataGetter(size).read(size, d)
+        try {
+            d.writeInt(ticks.size)
+            ticks.forEach { mapper.toOutput(it, d) }
+            d.flush()
+        } finally {
+            d.close()
+        }
     }
 
     private fun <T> readFlexibleSizedData(mapper: StreamMapper<out T>): List<T> {
         val d = readStream()
-        val maxEntrys = d.readInt()
-
         val ticks = mutableListOf<T>()
-        for (i in 1..maxEntrys) {
-            val stringLength = try {
-                d.readInt()
-            } catch (t: Throwable) {
-                logger.error { "could not read anymore, currently read: $ticks" }
-                break
+        try {
+            val maxEntrys = d.readInt()
+            for (i in 1..maxEntrys) {
+                val stringLength = try {
+                    d.readInt()
+                } catch (t: Throwable) {
+                    logger.error { "could not read anymore, currently read: $ticks" }
+                    break
+                }
+                val x = mapper.size + stringLength
+                ticks.add(mapper.toElement(read(x, d)))
             }
-            val x = mapper.size + stringLength
-            ticks.add(mapper.toElement(read(x, d)))
+        } finally {
+            d.close()
         }
-        d.close()
         return ticks
     }
 
@@ -62,15 +63,20 @@ class LRWStrategy(creator: IOStreamGenerator) : ListReaderWriter, IOStreamGenera
             return readFlexibleSizedData(mapper)
         }
         val d = readStream()
-        val size = d.readInt() * mapper.size
-//        logger.trace { "file: $fileName size: $size" }
-        val buffer = read(size, d)
-
         val ticks = mutableListOf<T>()
-        for (i in 1..(size / mapper.size)) {
-            ticks.add(mapper.toElement(buffer))
+        try {
+
+            val size = d.readInt() * mapper.size
+//        logger.trace { "file: $fileName size: $size" }
+            val buffer = read(size, d)
+
+            for (i in 1..(size / mapper.size)) {
+                ticks.add(mapper.toElement(buffer))
+            }
+        } finally {
+            d.close()
         }
-        d.close()
+
         return ticks
     }
 

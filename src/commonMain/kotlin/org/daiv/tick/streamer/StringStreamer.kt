@@ -7,17 +7,17 @@ class StringStreamer(val name: Header) : FlexibleStreamMapper<Datapoint<String>>
 
     override val ending: String = StringStreamerFactory.ending
 
-    override fun toOutput(t: Datapoint<String>, dataOutputStream: NativeDataReceiver) {
+    override fun toOutput(t: Datapoint<String>, dataOutputStream: NativeDataWriter) {
         dataOutputStream.writeInt(t.value.length)
         dataOutputStream.writeLong(t.time)
         dataOutputStream.writeString(t.value)
     }
 
-    override fun readSize(byteBuffer: NativeDataGetter): Int {
+    override fun readSize(byteBuffer: NativeData): Int {
         return byteBuffer.int
     }
 
-    override fun toElement(byteBuffer: NativeDataGetter): Datapoint<String> {
+    override fun toElement(byteBuffer: NativeData): Datapoint<String> {
         return Datapoint(name, byteBuffer.long, byteBuffer.string)
     }
 

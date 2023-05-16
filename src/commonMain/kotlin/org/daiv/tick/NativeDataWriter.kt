@@ -1,6 +1,6 @@
 package org.daiv.tick
 
-interface NativeDataReceiver {
+interface NativeDataWriter {
     fun writeLong(l: Long)
     fun writeDouble(d: Double)
     fun writeString(string: String)
@@ -10,13 +10,15 @@ interface NativeDataReceiver {
     fun close()
 }
 
-
-interface NativeDataGetter:NativeDataReader<NativeDataGetter> {
+interface NativeData{
     val byte: Byte
     val string: String
     val long: Long
     val double: Double
     val int: Int
+}
+
+interface NativeDataGetter:NativeDataReader<NativeDataGetter>, NativeData {
     val position: Int
     val array: ByteArray
     val limit:Int
