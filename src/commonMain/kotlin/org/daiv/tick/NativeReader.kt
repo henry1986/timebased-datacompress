@@ -10,6 +10,9 @@ interface NativeDataReader<T:NativeDataReader<T>>{
             val toRead = read
             val newlyRead = d.read(bytes, toRead, size - toRead)
             if (newlyRead == -1) {
+                if(read!=size){
+                    throw RuntimeException("did not get expected size value: $toRead vs $size")
+                }
                 break
             }
             read += newlyRead

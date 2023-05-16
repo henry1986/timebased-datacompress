@@ -1,5 +1,6 @@
 package org.daiv.tick
 
+import org.daiv.tick.list.readerWriter.ListReaderWriterFactory
 import org.daiv.tick.streamer.EnumStreamerBuilder
 import org.daiv.tick.streamer.IntStreamerFactory
 import org.daiv.tick.streamer.StreamerFactory
@@ -267,8 +268,8 @@ private fun writeLoop(w: WriteData, time: Long) {
 //    w.writeString(Header(listOf("uesa", "cp1"), "sState"), "HelloWorld", time)
 //    w.writeString(Header(listOf("cp1"), "cp1.- EV CP-state resolved"), "resolvedValue", time)
 //    w.writeString(Header(listOf("cp2"), "cp2.- EV CP-state resolved"), "resolvedValue", time)
-//    w.writeString(Header(listOf("cp3"), "cp3.- EV CP-state resolved"), "resolvedValue", time)
-    w.writeInt(Header(listOf("uesa", "cp1"), "cpState"), 9, time)
+    w.writeString(Header(listOf("cp3"), "cp3.- EV CP-state resolved"), "resolvedValue", time)
+//    w.writeInt(Header(listOf("uesa", "cp1"), "cpState"), 9, time)
 //    w.writeEnum(TestWrite, Header(listOf("uesa", "cp1"), "testWrite"), TestWrite.W1, time)
 }
 
@@ -284,7 +285,7 @@ private fun writeTest(storingFile: StoringFile) {
 private fun writeMultipleTimes() {
     val w: WriteData = JavaWriteDataFactory("main", false, ListReaderWriterFactory.StepByStepFactory)
     var counter = 0
-    while (counter < 232) {
+    while (counter < 1) {
         try {
             writeLoop(w, counter * 10L)
             println("counter: $counter")
@@ -296,9 +297,9 @@ private fun writeMultipleTimes() {
     val got = w.readDataPoints(StreamerFactory.streamer + TestWrite)
     got.forEach {
         it.list.forEach {
-            println("name: ${it.header}")
+            println("header: ${it.header}")
             it.list.forEach {
-                println("time: ${it.time}: ${it.value}")
+                println("time: ${it.time} -> value: ${it.value}")
             }
         }
     }
