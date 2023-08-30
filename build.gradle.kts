@@ -7,13 +7,14 @@ buildscript {
 //        maven ("https://s01.oss.sonatype.org/content/groups/public/")
     }
     dependencies {
-        classpath("org.daiv.dependency:DependencyHandling:0.1.60")
+        classpath("org.daiv.dependency:DependencyHandling:0.1.61")
     }
 }
 
 
 plugins {
     kotlin("multiplatform") version "1.6.10"
+    kotlin("plugin.serialization") version "1.6.10"
     id("org.daiv.dependency.VersionsPlugin") version "0.1.4"
     id("signing")
     `maven-publish`
@@ -22,7 +23,7 @@ plugins {
 val versions = org.daiv.dependency.DefaultDependencyBuilder(Versions.current())
 group = "org.daiv.timebased.datacompress"
 version = versions.setVersion { timebasedDatacompress }
-//version = "0.0.7-local"
+//version = "0.0.9-local"
 
 repositories {
     mavenCentral()
@@ -56,10 +57,10 @@ kotlin {
 //        else -> throw GradleException("Host OS is not supported in Kotlin/Native.")
 //    }
 
-    
+
     sourceSets {
-        val commonMain by getting{
-            dependencies{
+        val commonMain by getting {
+            dependencies {
                 implementation(versions.kutil())
                 implementation(versions.serialization())
             }
@@ -103,7 +104,7 @@ publishing {
             packaging = "jar"
             name.set("timebased-datacompress")
             description.set("library that stores compressed timebased values")
-            url.set("https://github.com/henry1986/coroutines-lib")
+            url.set("https://github.com/henry1986/timebased-datacompress")
             licenses {
                 license {
                     name.set("The Apache Software License, Version 2.0")
@@ -112,7 +113,7 @@ publishing {
             }
             issueManagement {
                 system.set("Github")
-                url.set("https://github.com/henry1986/coroutines-lib/issues")
+                url.set("https://github.com/henry1986/timebased-datacompress/issues")
             }
             scm {
                 connection.set("scm:git:https://github.com/henry1986/timebased-datacompress.git")

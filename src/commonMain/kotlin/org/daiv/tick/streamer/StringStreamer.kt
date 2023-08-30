@@ -1,5 +1,6 @@
 package org.daiv.tick.streamer
 
+import kotlinx.serialization.Serializable
 import org.daiv.tick.*
 
 class StringStreamer(val name: Header) : FlexibleStreamMapper<Datapoint<String>> {
@@ -23,6 +24,7 @@ class StringStreamer(val name: Header) : FlexibleStreamMapper<Datapoint<String>>
 
 }
 
+@Serializable
 object StringStreamerFactory : StreamerFactory<Datapoint<String>> {
     override val ending: String = "dpString"
 

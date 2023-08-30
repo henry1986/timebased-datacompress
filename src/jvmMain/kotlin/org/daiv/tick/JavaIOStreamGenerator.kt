@@ -307,7 +307,7 @@ private fun writeMultipleTimes() {
 private object TestC {
     private val f = File("main/testX")
     fun testDataoutputStream() {
-        val d = DataOutputStream(GZIPOutputStream(FileOutputStream(f, true)))
+        val d = DataOutputStream(FileOutputStream(f, true))
         val s = "HelloWorld"
         d.writeByte(15)
         d.writeInt(s.length)
@@ -354,9 +354,10 @@ private class ArrayTester {
 }
 
 fun main() {
-    writeMultipleTimes()
+//    writeMultipleTimes()
+
 //    ArrayTester().testByteBuffer()
-//    TestC.testDataoutputStream()
+    TestC.testDataoutputStream()
 //    TestC.readFile()
 //    val dir = File("main/2023-04-11/")
 //    dir.mkdirs()

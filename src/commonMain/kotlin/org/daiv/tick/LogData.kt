@@ -1,5 +1,6 @@
 package org.daiv.tick
 
+import kotlinx.serialization.Serializable
 import org.daiv.tick.streamer.StreamerFactory
 
 data class ColumnValue(val header: Header, val value: String)
@@ -25,6 +26,7 @@ data class LogData(val day: String, val list: List<LogColumn>) {
     }
 }
 
+@Serializable
 data class LogDP<T>(val streamerFactory: StreamerFactory<Datapoint<T>>, val header: Header, val value: T) {
     fun write(writeData: WriteData, time: Long) {
         writeData.write(streamerFactory, Datapoint(header, time, value))

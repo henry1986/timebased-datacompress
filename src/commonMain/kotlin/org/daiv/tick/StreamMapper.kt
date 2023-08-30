@@ -1,5 +1,7 @@
 package org.daiv.tick
 
+import kotlinx.serialization.Serializable
+
 /**
  * Interface for mapping a data object to and from a stream of bytes.
  *
@@ -49,6 +51,7 @@ interface TValueable<T> {
     val value: T
 }
 
+@Serializable
 data class Header(val header: List<String>, override val name: String) : Nameable {
     fun toName(): String {
         return header.joinToString(".") + "." + name
@@ -59,6 +62,7 @@ interface Headerable {
     val header: Header
 }
 
+@Serializable
 data class Datapoint<T>(override val header: Header, override val time: Long, override val value: T) : Timeable,
     TValueable<T>, Headerable
 

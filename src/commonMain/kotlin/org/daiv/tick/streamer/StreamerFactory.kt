@@ -1,5 +1,6 @@
 package org.daiv.tick.streamer
 
+import kotlinx.serialization.Serializable
 import org.daiv.tick.*
 
 interface StreamerFactory<T> : Endingable {
@@ -36,6 +37,7 @@ class GenericStreamMapper<T>(
     }
 }
 
+@Serializable
 object BooleanStreamMapperFactory : StreamerFactory<Datapoint<Boolean>> {
     override val ending: String = "dpBoolean"
     override fun streamer(name: Header): EndingStreamMapper<Datapoint<Boolean>> {
@@ -44,6 +46,7 @@ object BooleanStreamMapperFactory : StreamerFactory<Datapoint<Boolean>> {
 }
 
 
+@Serializable
 object DoubleStreamerFactory : StreamerFactory<Datapoint<Double>> {
     override val ending: String = "dpDouble"
     override fun streamer(name: Header): EndingStreamMapper<Datapoint<Double>> {
@@ -51,6 +54,7 @@ object DoubleStreamerFactory : StreamerFactory<Datapoint<Double>> {
     }
 }
 
+@Serializable
 object LongStreamerFactory : StreamerFactory<Datapoint<Long>> {
     override val ending: String = "dpLong"
     override fun streamer(name: Header): EndingStreamMapper<Datapoint<Long>> {
@@ -58,6 +62,7 @@ object LongStreamerFactory : StreamerFactory<Datapoint<Long>> {
     }
 }
 
+@Serializable
 object IntStreamerFactory : StreamerFactory<Datapoint<Int>> {
     override val ending: String = "dpInt"
     override fun streamer(name: Header): EndingStreamMapper<Datapoint<Int>> {
